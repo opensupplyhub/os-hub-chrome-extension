@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Open Supply Hub Submitter</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Open Supply Hub Submitter</h1>
+    
+    <div class="api-key-section">
+      <h2>API Configuration</h2>
+      <div class="form-group">
+        <label for="environment">Environment:</label>
+        <select id="environment">
+          <option value="staging">Staging (staging.opensupplyhub.org)</option>
+          <option value="production">Production (opensupplyhub.org)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="api-key">Open Supply Hub API Key:</label>
+        <input type="password" id="api-key" placeholder="Enter your API key">
+        <button id="save-api-key">Save</button>
+      </div>
+      <div id="api-status" class="status"></div>
+      <div id="environment-banner" class="environment-banner">Data will be submitted to STAGING</div>
+    </div>
+
+    <div class="facility-section">
+      <h2>Production Location Information</h2>
+      <div class="form-group">
+        <label for="facility-name">Name:</label>
+        <input type="text" id="facility-name" placeholder="Production location name">
+      </div>
+      <div class="form-group">
+        <label for="facility-address">Address:</label>
+        <textarea id="facility-address" placeholder="Production location address"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="facility-country">Country:</label>
+        <input type="text" id="facility-country" list="country-list" placeholder="Type country name or 2-letter code" required>
+        <datalist id="country-list">
+          <!-- Country options will be populated by JavaScript -->
+        </datalist>
+      </div>
+      <div class="form-group">
+        <label for="facility-product-type">Product Type (optional):</label>
+        <select id="facility-product-type">
+          <option value="" selected>Select a product type (optional)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="facility-sector">Sector (optional):</label>
+        <select id="facility-sector">
+          <option value="" selected>Select a sector (optional)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="facility-parent-company">Parent Company (optional):</label>
+        <input type="text" id="facility-parent-company" placeholder="Start typing to search for parent companies">
+        <div id="parent-company-suggestions" class="suggestions"></div>
+      </div>
+      <button id="submit-facility" class="submit-btn">Submit to Open Supply Hub</button>
+      <div id="submit-status" class="status"></div>
+    </div>
+
+    <div class="instructions">
+      <h3>How to use:</h3>
+      <ol>
+        <li>Enter your Open Supply Hub API key above</li>
+        <li>Highlight production location information on any webpage</li>
+        <li>Right-click and select the appropriate option</li>
+        <li>Review the information in this popup</li>
+        <li>Click "Submit to Open Supply Hub"</li>
+      </ol>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

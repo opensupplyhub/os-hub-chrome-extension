@@ -1,0 +1,25 @@
+.os-hub-highlight {
+  background-color: rgba(52, 152, 219, 0.3);
+  border-radius: 2px;
+  transition: background-color 0.3s ease;
+}
+
+.os-hub-name {
+  background-color: rgba(46, 204, 113, 0.3);
+}
+
+.os-hub-address {
+  background-color: rgba(241, 196, 15, 0.3);
+}
+
+.os-hub-country {
+  background-color: rgba(231, 76, 60, 0.3);
+}
+
+.os-hub-productType {
+  background-color: rgba(155, 89, 182, 0.3);
+}
+
+.os-hub-sector {
+  background-color: rgba(52, 73, 94, 0.3);
+}

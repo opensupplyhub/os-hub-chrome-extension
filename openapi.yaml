@@ -1,0 +1,1551 @@
+openapi: 3.1.0
+info:
+  title: OS Hub API Design - V1
+  summary: This is Target API Design for OS Hub, at this point in time it is a proposal and not a final design.
+  description: This specification outlines proposed API design for OS Hub to facilitate discussions and gather feedback before development begins.
+  version: 1.0.0
+servers:
+  - url: https://opensupplyhub.org/api
+    description: Production environment
+tags:
+  - name: beta
+    description: APIs are implemented and ready for beta testing.
+  - name: countries
+    description: Operations related to countries.
+  - name: sectors
+    description: Operations related to sectors.
+  - name: product-types
+    description: Operations related to product types.
+  - name: location-types
+    description: Operations related to location types.
+  - name: parent-companies
+    description: Operations related to parent companies.
+  - name: contributors
+    description: Operations related to contributors.
+  - name: production-locations
+    description: Operations related to production locations.
+  - name: moderation-events
+    description: Operations related to moderation events.
+paths:
+  /v1/contributors/:
+    get:
+      parameters:
+        - name: name
+          in: query
+          description: Filter using the name of the contributor.
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: contributor_id
+          in: query
+          description: Filter using the unique identifier of the contributor.
+          required: false
+          schema:
+            type: array
+            items:
+              type: number
+        - name: contributor_type
+          in: query
+          description: Filter using the type of the contributor.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: search_after
+          in: query
+          description: Cursor for the pagination, needs to be value from the field used in `sort_by` param.
+          required: false
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          description: The field to sort the results by.
+          required: false
+          schema:
+            type: string
+            enum: [contributor_id]
+        - $ref: "#/components/parameters/order_by"
+        - $ref: "#/components/parameters/size"
+        - $ref: "#/components/parameters/from"
+      summary: Get list of contributors to the OS Hub platform.
+      description: >
+        Returns an array of contributors with name and id, where id is the unique identifier of the contributor.
+      tags:
+        - contributors
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/contributor"
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The request query is invalid."
+                errors:
+                  - field: "search_after"
+                    detail: "The value must be a valid property."
+        401:
+          $ref: "#/components/responses/unauthorized"
+        429:
+          $ref: "#/components/responses/throttled"
+        500:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "An unexpected error occurred while processing the request."
+  /v1/countries/:
+    get:
+      summary: Get list of countries supported by the OS Hub platform.
+      description: >
+        Returns an array of countries with name and id, where id is the ISO 3166-1 alpha-2 code of the country.
+      tags:
+        - countries
+      parameters:
+        - $ref: "#/components/parameters/size"
+        - name: search_after
+          in: query
+          description: Cursor for the pagination, needs to be value from the field used in `sort_by` param.
+          required: false
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 2
+        - name: name
+          in: query
+          description: Filter using the name of the country.
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: alpha_2
+          in: query
+          description: Filter using the ISO 3166-1 alpha-2 code of the country.
+          required: false
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 2
+        - name: alpha_3
+          in: query
+          description: Filter using the ISO 3166-1 alpha-3 code of the country.
+          required: false
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 3
+        - name: numeric
+          in: query
+          description: Filter using the ISO 3166-1 numeric code of the country.
+          required: false
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 3
+        - name: sort_by
+          in: query
+          description: The field to sort the results by.
+          required: false
+          schema:
+            type: string
+            default: alpha_2
+            enum: [name, alpha_2, alpha_3, numeric]
+        - $ref: "#/components/parameters/order_by"
+        - name: fields
+          in: query
+          description: The fields to include in the response.
+          style: explode
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [name, alpha_2, alpha_3, numeric]
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/country"
+                example:
+                  - name: "United Kingdom of Great Britain and Northern Ireland"
+                    alpha_2: "GB"
+                    alpha_3: "GBR"
+                    numeric: "826"
+                  - name: "United States of America"
+                    alpha_2: "US"
+                    alpha_3: "USA"
+                    numeric: "840"
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The request query is invalid."
+                errors:
+                  - field: "search_after"
+                    detail: "The value must be a valid id."
+        401:
+          $ref: "#/components/responses/unauthorized"
+        429:
+          $ref: "#/components/responses/throttled"
+        500:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "An unexpected error occurred while processing the request."
+  /v1/sectors/:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/size"
+        - name: search_after
+          in: query
+          description: Cursor for the pagination, needs to be value from the field used in `sort_by` param.
+          required: false
+          schema:
+            type: string
+        - name: name
+          in: query
+          description: Filter using the name of the sector.
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: sort_by
+          in: query
+          description: The field to sort the results by.
+          required: false
+          schema:
+            type: string
+            default: name
+            enum: [name]
+        - $ref: "#/components/parameters/order_by"
+      summary: Get list of sectors that are present in the OS Hub platform.
+      description: >
+        Returns an array of sectors with that is aggregated from the production locations dataset.
+      tags:
+        - sectors
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/sector"
+                example:
+                  - name: "Agriculture"
+                  - name: "Apparel"
+                  - name: "Information"
+        401:
+          $ref: "#/components/responses/unauthorized"
+        429:
+          $ref: "#/components/responses/throttled"
+  /v1/product-types/:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/size"
+        - name: search_after
+          in: query
+          description: Cursor for the pagination, needs to be value from the field used in `sort_by` param.
+          required: false
+          schema:
+            type: string
+        - name: name
+          in: query
+          description: Filter using the name of the product type.
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: sort_by
+          in: query
+          description: The field to sort the results by.
+          required: false
+          schema:
+            type: string
+            default: name
+            enum: [name]
+        - $ref: "#/components/parameters/order_by"
+      summary: Get list of product types that are present in the OS Hub platform.
+      description: >
+        Returns an array of product types that are aggregated from the production locations dataset.
+      tags:
+        - product-types
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/product_type"
+                example:
+                  - name: "Accessories"
+                  - name: "Belts"
+                  - name: "Caps"
+        401:
+          $ref: "#/components/responses/unauthorized"
+        429:
+          $ref: "#/components/responses/throttled"
+  /v1/location-types/:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/size"
+        - name: search_after
+          in: query
+          description: Cursor for the pagination, needs to be value from the field used in `sort_by` param.
+          required: false
+          schema:
+            type: string
+        - name: name
+          in: query
+          description: Filter using the name of the location type.
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: processing_types.name
+          in: query
+          description: Filter using the processing type of the location type.
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: sort_by
+          in: query
+          description: The field to sort the results by.
+          required: false
+          schema:
+            type: string
+            default: name
+            enum: [name]
+        - $ref: "#/components/parameters/order_by"
+        - name: fields
+          in: query
+          description: The fields to include in the response.
+          style: explode
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [name, processing_types]
+      summary: Get list of location types and related processing types that are supported by the OS Hub platform.
+      description: >
+        Returns an array of location types and related processing types that are supported by the platform.
+      tags:
+        - location-types
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/location_type"
+                example:
+                  - name: "Final Product Assembly"
+                    processing_types:
+                      - name: "Cutting"
+                      - name: "Sewing"
+                      - name: "Finishing"
+                  - name: "Office / HQ"
+                    processing_types:
+                      - name: "Administration"
+                      - name: "Management"
+                      - name: "Sales"
+                  - name: "Printing, Product Dyeing and Laundering"
+                    processing_types:
+                      - name: "Printing"
+                      - name: "Dyeing"
+                      - name: "Laundering"
+        401:
+          $ref: "#/components/responses/unauthorized"
+        429:
+          $ref: "#/components/responses/throttled"
+  /v1/parent-companies/:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/size"
+        - name: search_after
+          in: query
+          description: Cursor for the pagination, needs to be value from the field used in `sort_by` param.
+          required: false
+          schema:
+            type: string
+        - name: name
+          in: query
+          description: Filter using the name of the parent company.
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: sort_by
+          in: query
+          description: The field to sort the results by.
+          required: false
+          schema:
+            type: string
+            default: name
+            enum: [name]
+        - $ref: "#/components/parameters/order_by"
+      summary: Get list of parent companies that are present in the OS Hub platform.
+      description: >
+        Returns an array of parent companies that are aggregated from the production locations dataset.
+      tags:
+        - parent-companies
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/parent_company"
+                example:
+                  - name: "Adidas AG"
+                  - name: "Nike Inc."
+                  - name: "Puma SE"
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The request query is invalid."
+                errors:
+                  - field: "name"
+                    detail: "The value must be a non-empty string."
+        401:
+          $ref: "#/components/responses/unauthorized"
+        429:
+          $ref: "#/components/responses/throttled"
+        500:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "An unexpected error occurred while processing the request."
+  /v1/production-locations/:
+    get:
+      summary: Get list of production locations exposed by the OS Hub platform.
+      parameters:
+        - name: query
+          in: query
+          description: Filter using the query string (searches across multiple fields).
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: os_id
+          in: query
+          description: Filter using the unique identifier of the location.
+          required: false
+          schema:
+            type: string
+        - name: name
+          in: query
+          description: Filter using the name of the location.
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: local_name
+          in: query
+          description: Filter using the local name of the location.
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: description
+          in: query
+          description: Filter using the description of the location.
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: address
+          in: query
+          description: Filter using the address of the location.
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: country
+          in: query
+          description: Filter using the alpha-2 code of the location.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              minLength: 2
+        - name: sort_by
+          in: query
+          description: The field to sort the results by.
+          required: false
+          schema:
+            type: string
+            default: none (best match) for all queries; `name` when use `search_after[value]` and `search_after[id]`.
+            enum: [name, address]
+        - name: order_by
+          in: query
+          description: The order to sort the results by.
+          required: false
+          schema:
+            type: string
+            default: none for all queries, `asc` for `sort_by` and `search_after[value]` | `search_after[id]`.
+            enum: [asc, desc]
+        - name: aggregation
+          in: query
+          description: Add geohex grid aggregation to the response.
+          required: false
+          schema:
+            type: string
+            enum: [geohex_grid]
+        - name: geohex_grid_precision
+          in: query
+          description: >
+            The precision of the geohex grid (range: 0 to 15). 
+            When the `aggregation` parameter is provided, the default value is assumed to be 5 if this parameter is omitted.
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 15
+        - name: geo_bounding_box
+          in: query
+          description: >
+            Filter using the bounding box. The bounding box is defined 
+            by the coordinates of its top, left, bottom, and right sides. 
+            All four coordinates must be specified.
+          style: deepObject
+          explode: true
+          required: false
+          schema:
+            type: object
+            required:
+              - top
+              - left
+              - bottom
+              - right
+            properties:
+              top:
+                type: number
+                format: float
+                minimum: -90
+                maximum: 90
+                example: 90
+              left:
+                type: number
+                format: float
+                minimum: -180
+                maximum: 180
+                example: -180
+              bottom:
+                type: number
+                format: float
+                minimum: -90
+                maximum: 90
+                example: -90
+              right:
+                type: number
+                format: float
+                minimum: -180
+                maximum: 180
+                example: 180
+        - name: geo_polygon
+          in: query
+          description: >
+            Filter documents that contain geopoints located within the specified polygon.
+            The `geo_polygon` parameter should consist of multiple coordinates in the form of `latitude,longitude`,
+            representing the vertices of a polygon.
+            If the `geo_polygon` parameter is used, at least three `geo_polygon` values must be provided in a single query to form a valid polygon.
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+              example: "79.318492,-39.36719"
+          required: false
+          examples:
+            multiple_coordinates:
+              summary: Example with multiple polygon vertices
+              value:
+                - "79.318492,-39.36719"
+                - "79.280399,-55.39907"
+                - "77.57295,-55.512304"
+                - "77.598154,-38.396004"
+        - $ref: "#/components/parameters/size"
+        - $ref: "#/components/parameters/from"
+        - name: search_after[value]
+          in: query
+          description: >
+            Cursor for pagination. Corresponds to the value of the field specified in the `sort_by` parameter
+            from the last item of the previous page. The expected type and format depend on the `sort_by` field:
+
+            - `name`, `address`: Text (string).
+
+
+            Must be used in concert with `search_after[id]`
+          required: false
+          schema:
+            oneOf:
+              - type: string
+                example: "Production location name"
+                description: Text value for the `name` field.
+              - type: string
+                example: "Production location address"
+                description: Text value for the `address` field.
+        - name: search_after[id]
+          in: query
+          description: Cursor for the pagination. Uses os_id of the previous element. Must be used in concert with `search_after[value]`.
+          required: false
+          schema:
+            type: string
+            example: CN2223250D1DTN7
+      description: >
+        Returns an array of production locations, including the name, id,
+        and other properties, where the id is the unique identifier of
+        each location. Production location data for the search becomes
+        available 15 minutes after the uploaded location data is approved by
+        the data moderator.
+      tags:
+        - production-locations
+        - beta
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/location"
+                  aggregations:
+                    type: object
+                    properties:
+                      geohex_grid:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/aggregation"
+                required:
+                  - count
+                  - data
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The request query is invalid."
+                errors:
+                  - field: "number_of_workers"
+                    detail: "The value must be a valid object with `min` and `max` properties."
+        401:
+          $ref: "#/components/responses/unauthorized"
+        429:
+          $ref: "#/components/responses/throttled"
+        500:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "An unexpected error occurred while processing the request."
+    post:
+      summary: Create a new location.
+      description: |
+        Creates a new moderation event for the production location
+        creation with the given details.
+
+        You can use the GET `/v1/moderation-events/{moderation_id}/`
+        endpoint to track the status of the moderation event created
+        by this action.
+      tags:
+        - production-locations
+        - beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/location_source"
+      responses:
+        202:
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/location_new"
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The request body is invalid."
+                errors:
+                  - field: "non_field_errors"
+                    detail: "Invalid data. Expected a dictionary (object), but got list."
+        401:
+          $ref: "#/components/responses/unauthorized"
+        403:
+          $ref: "#/components/responses/unconfirmed_user"
+        422:
+          $ref: "#/components/responses/unprocessable_entity"
+        429:
+          $ref: "#/components/responses/throttled"
+        500:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "An unexpected error occurred while processing the request."
+        503:
+          $ref: "#/components/responses/data_upload_maintenance_error"
+  /v1/production-locations/{os_id}/:
+    parameters:
+      - name: os_id
+        in: path
+        description: The unique identifier of the location.
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get details of a location by its unique identifier.
+      description: >
+        Returns details of a location, including the name, id, and other
+        properties, where the id is the unique identifier of the
+        location. Production location data for the search becomes
+        available 15 minutes after the uploaded location is approved by
+        the data moderator.
+      tags:
+        - production-locations
+        - beta
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/location"
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The request query is invalid."
+                errors:
+                  - field: "os_id"
+                    detail: "The value must be a valid id."
+        401:
+          $ref: "#/components/responses/unauthorized"
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The location with the given id was not found."
+        429:
+          $ref: "#/components/responses/throttled"
+        500:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "An unexpected error occurred while processing the request."
+    patch:
+      summary: Partially update an existing location.
+      description: |
+        Creates a new moderation event to contribute to an existing
+        production location with the given details.
+
+        You can use the GET `/v1/moderation-events/{moderation_id}/`
+        endpoint to track the status of the moderation event created
+        by this action.
+      tags:
+        - production-locations
+        - beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/location_source"
+      responses:
+        202:
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/location_update"
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The request body is invalid."
+                errors:
+                  - field: "non_field_errors"
+                    detail: "Invalid data. Expected a dictionary (object), but got list."
+        401:
+          $ref: "#/components/responses/unauthorized"
+        403:
+          $ref: "#/components/responses/unconfirmed_user"
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The location with the given id was not found."
+        422:
+          $ref: "#/components/responses/unprocessable_entity"
+        429:
+          $ref: "#/components/responses/throttled"
+        500:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "An unexpected error occurred while processing the request."
+        503:
+          $ref: "#/components/responses/data_upload_maintenance_error"
+  /v1/moderation-events/:
+    get:
+      summary: Get list of moderation events exposed by the OS Hub platform.
+      parameters:
+        - name: contributor_id
+          in: query
+          description: Filter using contributor id.
+          required: false
+          schema:
+            type: array
+            items:
+              type: number
+        - name: os_id
+          in: query
+          description: Filter using the unique identifiers of the location.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: request_type
+          in: query
+          description: Filter using request type of production location.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [CREATE, UPDATE, CLAIM]
+        - name: source
+          in: query
+          description: Filter using source type of production location.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [API, SLC]
+        - name: status
+          in: query
+          description: Filter using moderation status of production location.
+          required: false
+          schema:
+            type: string
+            default: PENDING
+            enum: [PENDING, APPROVED, REJECTED]
+        - name: moderation_id
+          in: query
+          description: Filter using the unique moderation identifier.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+        - name: country
+          in: query
+          description: Filter using the alpha-2 code of the location.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              minLength: 2
+              maxLength: 2
+        - name: date_gte
+          in: query
+          description: Set starting date to filter by production location creation timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: date_lt
+          in: query
+          description: Set end date to filter by production location creation timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: sort_by
+          in: query
+          description: The field to sort the results by.
+          required: false
+          schema:
+            default: none (best match) for all queries; `created_at` when use `search_after[value]` and `search_after[id]`.
+            type: string
+            enum:
+              [
+                "created_at",
+                "status_change_date",
+                "updated_at",
+                "contributor_id",
+                "contributor_name",
+                "country",
+                "name",
+                "address",
+                "source",
+                "status",
+              ]
+        - order_by:
+          name: order_by
+          in: query
+          description: The order to sort the results by.
+          required: false
+          schema:
+            type: string
+            default: none for all queries, `desc` for `sort_by` and `search_after[value]` | `search_after[id]`.
+            enum: [asc, desc]
+        - $ref: "#/components/parameters/size"
+        - $ref: "#/components/parameters/from"
+        - name: search_after[value]
+          in: query
+          description: >
+            Cursor for pagination. Corresponds to the value of the field specified in the `sort_by` parameter
+            from the last item of the previous page. The expected type and format depend on the `sort_by` field:
+
+            - `created_at`, `status_change_date`, `updated_at`: ISO 8601 date and time (date-time).
+
+            - `contributor_id`: Numeric id (integer).
+
+            - `contributor_name`, `name`, `address`, `source`, `country`, `status`: Text (string).
+
+
+            Must be used in concert with `search_after[id]`.
+          required: false
+          schema:
+            oneOf:
+              - type: string
+                format: date-time
+                example: "2024-11-19T07:52:12.641297Z"
+                description: ISO 8601 (YYYY-MM-DDTHH:mm:ss.ssssssZ) time format for fields like `created_at`, `status_change_date`, or `updated_at`.
+              - type: string
+                example: "John Doe"
+                description: Text value for fields like `contributor_name`, `name`, `address`, `source`, `country`, or `status`.
+        - name: search_after[id]
+          in: query
+          description: Cursor for the pagination. Uses moderation_id of the previous element. Must be used in concert with `search_after[value]`
+          required: false
+          schema:
+            type: string
+            example: 1f35a90f-70a0-4c3e-8e06-2ed8e1fc6810
+      description: >
+        Returns an array of moderation events. Moderation event data for
+        the search becomes available 1 minute after the moderation event
+        is created.
+      tags:
+        - moderation-events
+        - beta
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/moderation_event"
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              examples:
+                invalid_moderation_id:
+                  summary: Invalid `moderation_id`
+                  value:
+                    detail: "The request query is invalid."
+                    errors:
+                      - field: "moderation_id"
+                        detail: "Moderation id must be a string with uuid format."
+                invalid_status:
+                  summary: Invalid `status`
+                  value:
+                    detail: "The request query is invalid."
+                    errors:
+                      - field: "status"
+                        detail: "Moderation status must be one of PENDING, APPROVED or REJECTED."
+                invalid_request_type:
+                  summary: Invalid `request_type`
+                  value:
+                    detail: "The request query is invalid."
+                    errors:
+                      - field: "request_type"
+                        detail: "Request type must be one of CREATE, UPDATE, or CLAIM."
+                invalid_country:
+                  summary: Invalid `country`
+                  value:
+                    detail: "The request query is invalid."
+                    errors:
+                      - field: "country"
+                        detail: "Country must be a valid alpha-2 country code."
+                invalid_date_gte:
+                  summary: Invalid `date_gte`
+                  value:
+                    detail: "The request query is invalid."
+                    errors:
+                      - field: "date_gte"
+                        detail: "The value must be a valid date string."
+                invalid_date_lt:
+                  summary: Invalid `date_lt`
+                  value:
+                    detail: "The request query is invalid."
+                    errors:
+                      - field: "date_lt"
+                        detail: "The value must be a valid date string."
+                invalid_date_range:
+                  summary: Invalid `date_lt` and `date_gte`
+                  value:
+                    detail: "The request query is invalid."
+                    errors:
+                      - field: "date_lt"
+                        detail: "Start date cannot be later than the end date."
+        401:
+          $ref: "#/components/responses/unauthorized"
+        429:
+          $ref: "#/components/responses/throttled"
+        500:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "An unexpected error occurred while processing the request."
+  /v1/moderation-events/{moderation_id}/:
+    get:
+      summary: Get moderation event by id.
+      parameters:
+        - name: moderation_id
+          in: path
+          description: The unique identifier of moderation event.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      description: >
+        Returns the moderation event associated with a specific id.
+        Moderation event data for the search becomes available 1
+        minute after the moderation event is created.
+      tags:
+        - moderation-events
+        - beta
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/moderation_event"
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The request path parameter is invalid."
+                errors:
+                  - field: "moderation_id"
+                    detail: "Invalid UUID format."
+        401:
+          $ref: "#/components/responses/unauthorized"
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "Moderation event not found."
+        429:
+          $ref: "#/components/responses/throttled"
+        500:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "An unexpected error occurred while processing the request."
+    patch:
+      summary: Change moderation event. Available only for data moderators.
+      parameters:
+        - name: moderation_id
+          in: path
+          description: The unique identifier of the moderation event.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              oneOf:
+                - properties:
+                    status:
+                      type: string
+                      enum: [PENDING, APPROVED]
+                  required:
+                    - status
+                - properties:
+                    status:
+                      type: string
+                      enum: [REJECTED]
+                    action_reason_text_cleaned:
+                      type: string
+                      description: >
+                        The cleaned version of the action reason text.
+                      minLength: 30
+                    action_reason_text_raw:
+                      type: string
+                      description: >
+                        The raw (html formatted) version of the action reason text.
+                      minLength: 30
+                  required:
+                    - status
+                    - action_reason_text_cleaned
+                    - action_reason_text_raw
+      description: >
+        Changes the moderation event. Moderation event data is updated
+        in the search results 1 minute after the update action is
+        performed.
+      tags:
+        - moderation-events
+        - beta
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/moderation_event"
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              examples:
+                invalid_moderation_id:
+                  summary: Invalid `moderation_id`
+                  value:
+                    detail: "The request path parameter is invalid."
+                    errors:
+                      - field: "moderation_id"
+                        detail: "Invalid UUID format."
+                invalid_status:
+                  summary: Invalid `status`
+                  value:
+                    detail: "The request body is invalid."
+                    errors:
+                      - field: "status"
+                        detail: "Moderation status must be one of PENDING, APPROVED or REJECTED."
+                missing_status:
+                  summary: Missing `status`
+                  value:
+                    detail: "The request body is invalid."
+                    errors:
+                      - field: "status"
+                        detail: "This field is required."
+        401:
+          $ref: "#/components/responses/unauthorized"
+        403:
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "Only the moderator can perform this action."
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The request path parameter is invalid."
+                errors:
+                  - field: "moderation_id"
+                    detail: "Moderation event not found."
+        429:
+          $ref: "#/components/responses/throttled"
+        500:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "An unexpected error occurred while processing the request."
+  /v1/moderation-events/{moderation_id}/production-locations/:
+    parameters:
+      - name: moderation_id
+        in: path
+        description: The unique identifier of moderation event.
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags:
+        - moderation-events
+        - beta
+      summary: >
+        Creates a new production location based on the moderation
+        event.
+      description: |
+        Creates a new production location based on the moderation
+        event, either for creating a new production location or
+        contributing to an existing one.
+
+        When a data moderator decides to create a new production
+        location, this endpoint is used. A new production
+        location can be created even if the moderation event is
+        of type `UPDATE`. You can refer to the GET
+        `/v1/production-locations/` or
+        `/v1/production-locations/{os_id}/` endpoints to search for
+        the newly created production location.
+      responses:
+        201:
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  os_id:
+                    type: string
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The request path parameter is invalid."
+                errors:
+                  - field: "moderation_id"
+                    detail: "Invalid UUID format."
+        401:
+          $ref: "#/components/responses/unauthorized"
+        403:
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "Only the moderator can perform this action."
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The request path parameter is invalid."
+                errors:
+                  - field: "moderation_id"
+                    detail: "Moderation event not found."
+        410:
+          description: Gone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The moderation event should be in PENDING status."
+        429:
+          $ref: "#/components/responses/throttled"
+        500:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "An unexpected error occurred while processing the request."
+  /v1/moderation-events/{moderation_id}/production-locations/{os_id}/:
+    patch:
+      parameters:
+        - name: moderation_id
+          in: path
+          description: The unique identifier of moderation event.
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: os_id
+          in: path
+          description: The unique identifier of the location.
+          required: true
+          schema:
+            type: string
+      tags:
+        - moderation-events
+        - beta
+      summary: >
+        Add a new contribution to the existing production location.
+      description: |
+        Adds a new contribution to the existing location based on the
+        moderation event.
+
+        When a data moderator decides to add location data as a new
+        contribution to an existing production location, this endpoint
+        is used to create the contribution. A new contribution can be
+        added even if the moderation event is of type `CREATE`. You can
+        refer to the GET `/v1/production-locations/` or
+        `/v1/production-locations/{os_id}/` endpoints to search for the
+        production location to which the contribution was made.
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  os_id:
+                    type: string
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              examples:
+                invalid_moderation_id:
+                  summary: Invalid `moderation_id`
+                  value:
+                    detail: "The request path parameter is invalid."
+                    errors:
+                      - field: "moderation_id"
+                        detail: "Invalid UUID format."
+                not_valid_os_id:
+                  summary: Invalid `os_id`
+                  value:
+                    detail: "The request path parameter is invalid."
+                    errors:
+                      - field: "os_id"
+                        detail: "The value must be a valid id."
+        401:
+          $ref: "#/components/responses/unauthorized"
+        403:
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "Only the moderator can perform this action."
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              examples:
+                moderation_event_not_found:
+                  summary: Moderation event not found
+                  value:
+                    detail: "The request path parameter is invalid."
+                    errors:
+                      - field: "moderation_id"
+                        detail: "Moderation event not found."
+                production_location_not_found:
+                  summary: Production location not found
+                  value:
+                    detail: "The request path parameter is invalid."
+                    errors:
+                      - field: "os_id"
+                        detail: "The location with the given id was not found."
+        410:
+          description: Gone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "The moderation event should be in PENDING status."
+        429:
+          $ref: "#/components/responses/throttled"
+        500:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+              example:
+                detail: "An unexpected error occurred while processing the request."
+components:
+  schemas:
+    claim:
+      $ref: "schemas/claim.json"
+    claim_base:
+      $ref: "schemas/claim_base.json"
+    parent_company:
+      $ref: "schemas/parent_company.json"
+    contributor:
+      $ref: "schemas/contributor.json"
+    country:
+      $ref: "schemas/country.json"
+    sector:
+      $ref: "schemas/sector.json"
+    product_type:
+      $ref: "schemas/product_type.json"
+    location_type:
+      $ref: "schemas/location_type.json"
+    processing_type:
+      $ref: "schemas/processing_type.json"
+    location_base:
+      $ref: "schemas/location_base.json"
+    location_contribution:
+      $ref: "schemas/location_contribution.json"
+    location:
+      $ref: "schemas/location.json"
+    location_new:
+      $ref: "schemas/location_new.json"
+    location_update:
+      $ref: "schemas/location_update.json"
+    location_source:
+      $ref: "schemas/location_source.json"
+    aggregation:
+      $ref: "schemas/aggregation.json"
+    moderation_event:
+      $ref: "schemas/moderation_event.json"
+    error:
+      $ref: "schemas/error.json"
+  responses:
+    unauthorized:
+      $ref: "responses/unauthorized.json"
+    unconfirmed_user:
+      $ref: "responses/unconfirmed_user.json"
+    throttled:
+      $ref: "responses/throttled.json"
+    data_upload_maintenance_error:
+      $ref: "responses/data_upload_maintenance_error.json"
+    unprocessable_entity:
+       $ref: "responses/unprocessable_entity.json"
+  parameters:
+    order_by:
+      name: order_by
+      in: query
+      description: The order to sort the results by.
+      required: false
+      schema:
+        type: string
+        default: asc
+        enum: [asc, desc]
+    from:
+      name: from
+      in: query
+      description: Number from which to start showing the results for the pagination.
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+        description: The `from` and `size` parameters return results one page at a time.
+    size:
+      name: size
+      in: query
+      description: The maximum number of entries to return.
+      required: false
+      schema:
+        type: integer
+        default: 10
+        minimum: 1
+        maximum: 251
