@@ -49,6 +49,7 @@ The following fields are optional:
 - Product Types: Types of products produced/processed at the location (dropdown selection)
 - Sectors: Industry sectors associated with the location (dropdown selection)
 - Parent Company: The parent company associated with the production location
+- Source & Timestamp: The website URL this production location is listed, and when it was submitted
 
 ## Privacy
 
