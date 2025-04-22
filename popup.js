@@ -610,6 +610,38 @@ document.addEventListener('DOMContentLoaded', function() {
         if (productType) payload.product_types = [productType];
         if (sector) payload.sectors = [sector];
         if (parentCompany) payload.parent_companies = [parentCompany];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+  const sourceUrlInput = document.getElementById('sourceUrl');
+  const retrievalTimeInput = document.getElementById('retrievalTime');
+  const confirmButton = document.getElementById('confirmButton');
+
+  // Autofill source URL
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const currentTab = tabs[0];
+    if (currentTab && currentTab.url) {
+      sourceUrlInput.value = currentTab.url;
+    }
+  });
+
+  // Autofill current datetime
+  const now = new Date();
+  retrievalTimeInput.value = now.toISOString();
+
+  // Confirm button event
+  confirmButton.addEventListener('click', () => {
+    const sourceUrl = sourceUrlInput.value;
+    const retrievalTime = retrievalTimeInput.value;
+
+    // For now, just log — you can connect this to your save function
+    console.log('Confirmed Source URL:', sourceUrl);
+    console.log('Confirmed Retrieval Time:', retrievalTime);
+
+    // Optional: show a visual confirmation or save to local storage
+    alert('Source and Time confirmed!');
+  });
+});
+
       
         // Make API request to Open Supply Hub
         fetch(API_BASE_URL + API_ENDPOINT, {
