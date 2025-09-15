@@ -4,6 +4,10 @@
   "version": "1.0",
   "description": "Highlight and submit facility information to Open Supply Hub",
   "permissions": ["activeTab", "storage", "contextMenus"],
+  "host_permissions": [
+    "https://opensupplyhub.org/*",
+    "https://staging.opensupplyhub.org/*"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

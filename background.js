@@ -64,3 +64,34 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
     });
   }
 });
+
+// API proxy for content script
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'makeApiRequest') {
+    // Handle API requests from content script
+    fetch(request.url, {
+      method: request.method || 'GET',
+      headers: request.headers || {},
+      body: request.body || undefined
+    })
+    .then(response => {
+      if (!response.ok) {
+        return response.json().then(errorData => {
+          throw new Error(errorData.detail || `HTTP error ${response.status}`);
+        }).catch(() => {
+          throw new Error(`HTTP error ${response.status}`);
+        });
+      }
+      return response.json();
+    })
+    .then(data => {
+      sendResponse({ success: true, data: data });
+    })
+    .catch(error => {
+      sendResponse({ success: false, error: error.message });
+    });
+    
+    // Return true to indicate we'll respond asynchronously
+    return true;
+  }
+});
