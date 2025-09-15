@@ -543,8 +543,8 @@ function showFacebookExtractionPopup() {
       // Save to local storage
       chrome.storage.local.set({facilityData: facilityData});
       
-      // Show success message
-      showExtractionSuccessMessage(extractedData);
+      // Show data review popup instead of success message
+      showDataReviewPopup(extractedData);
     } else {
       showExtractionErrorMessage();
     }
@@ -633,6 +633,719 @@ function checkForFacebookBusinessPage() {
   } else {
     console.log('[OS-Hub] Not detected as Facebook business page');
   }
+}
+
+// Data Review and Submission Popup
+function showDataReviewPopup(extractedData) {
+  // Create popup overlay
+  const overlay = document.createElement('div');
+  overlay.id = 'os-hub-data-review-popup';
+  overlay.className = 'os-hub-popup-overlay';
+  
+  // Create popup content
+  const content = document.createElement('div');
+  content.className = 'os-hub-popup-content os-hub-review-popup';
+  
+  content.innerHTML = `
+    <div class="os-hub-popup-header">
+      <h3>Review & Submit Data</h3>
+      <button class="os-hub-popup-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="os-hub-popup-body">
+      <div class="os-hub-form-section">
+        <div class="os-hub-environment-section">
+          <label for="os-hub-environment">Environment:</label>
+          <select id="os-hub-environment">
+            <option value="staging">Staging (staging.opensupplyhub.org)</option>
+            <option value="production">Production (opensupplyhub.org)</option>
+          </select>
+          <div id="os-hub-environment-banner" class="os-hub-environment-banner">Data will be submitted to STAGING</div>
+        </div>
+        
+        <div class="os-hub-api-section">
+          <label for="os-hub-api-key">API Key:</label>
+          <input type="password" id="os-hub-api-key" placeholder="Enter your API key">
+          <div id="os-hub-api-status" class="os-hub-status"></div>
+        </div>
+        
+        <div class="os-hub-form-group">
+          <label for="os-hub-facility-name">Name:</label>
+          <input type="text" id="os-hub-facility-name" value="${extractedData.name || ''}" required>
+        </div>
+        
+        <div class="os-hub-form-group">
+          <label for="os-hub-facility-address">Address:</label>
+          <textarea id="os-hub-facility-address" required>${extractedData.address || ''}</textarea>
+        </div>
+        
+        <div class="os-hub-form-group">
+          <label for="os-hub-facility-country">Country:</label>
+          <input type="text" id="os-hub-facility-country" value="${extractedData.country || ''}" list="os-hub-country-list" placeholder="Type country name or 2-letter code" required>
+          <datalist id="os-hub-country-list"></datalist>
+        </div>
+        
+        <div class="os-hub-form-group">
+          <label for="os-hub-facility-product-type">Product Type (optional):</label>
+          <select id="os-hub-facility-product-type">
+            <option value="">Select a product type (optional)</option>
+          </select>
+        </div>
+        
+        <div class="os-hub-form-group">
+          <label for="os-hub-facility-sector">Sector (optional):</label>
+          <select id="os-hub-facility-sector">
+            <option value="">Select a sector (optional)</option>
+          </select>
+        </div>
+        
+        <div class="os-hub-form-group">
+          <label for="os-hub-facility-parent-company">Parent Company (optional):</label>
+          <input type="text" id="os-hub-facility-parent-company" placeholder="Start typing to search">
+          <div id="os-hub-parent-company-suggestions" class="os-hub-suggestions"></div>
+        </div>
+      </div>
+      
+      <div class="os-hub-popup-buttons">
+        <button type="button" class="os-hub-btn os-hub-btn-secondary" id="os-hub-cancel-btn">Cancel</button>
+        <button type="button" class="os-hub-btn os-hub-btn-primary" id="os-hub-submit-btn">Submit to Open Supply Hub</button>
+      </div>
+      <div id="os-hub-submit-status" class="os-hub-status"></div>
+    </div>
+  `;
+  
+  overlay.appendChild(content);
+  document.body.appendChild(overlay);
+  
+  // Initialize the review popup functionality
+  initializeDataReviewPopup();
+  
+  // Close handlers
+  const closeBtn = content.querySelector('.os-hub-popup-close');
+  const cancelBtn = content.querySelector('#os-hub-cancel-btn');
+  
+  function closePopup() {
+    document.body.removeChild(overlay);
+  }
+  
+  closeBtn.addEventListener('click', closePopup);
+  cancelBtn.addEventListener('click', closePopup);
+  
+  // Close on overlay click
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) {
+      closePopup();
+    }
+  });
+}
+
+// API configuration and data for the review popup
+const osHubEnvironments = {
+  staging: {
+    baseUrl: 'https://staging.opensupplyhub.org/api',
+    name: 'STAGING'
+  },
+  production: {
+    baseUrl: 'https://opensupplyhub.org/api', 
+    name: 'PRODUCTION'
+  }
+};
+
+let osHubCurrentEnvironment = 'staging';
+let osHubApiBaseUrl = osHubEnvironments.staging.baseUrl;
+const osHubApiEndpoint = '/v1/production-locations/';
+const osHubParentCompaniesEndpoint = '/v1/parent-companies/';
+
+// Country codes data (same as popup.js)
+const osHubCountries = [
+  { name: "Afghanistan", alpha_2: "AF" },
+  { name: "Albania", alpha_2: "AL" },
+  { name: "Algeria", alpha_2: "DZ" },
+  { name: "Andorra", alpha_2: "AD" },
+  { name: "Angola", alpha_2: "AO" },
+  { name: "Antigua and Barbuda", alpha_2: "AG" },
+  { name: "Argentina", alpha_2: "AR" },
+  { name: "Armenia", alpha_2: "AM" },
+  { name: "Australia", alpha_2: "AU" },
+  { name: "Austria", alpha_2: "AT" },
+  { name: "Azerbaijan", alpha_2: "AZ" },
+  { name: "Bahamas", alpha_2: "BS" },
+  { name: "Bahrain", alpha_2: "BH" },
+  { name: "Bangladesh", alpha_2: "BD" },
+  { name: "Barbados", alpha_2: "BB" },
+  { name: "Belarus", alpha_2: "BY" },
+  { name: "Belgium", alpha_2: "BE" },
+  { name: "Belize", alpha_2: "BZ" },
+  { name: "Benin", alpha_2: "BJ" },
+  { name: "Bhutan", alpha_2: "BT" },
+  { name: "Bolivia", alpha_2: "BO" },
+  { name: "Bosnia and Herzegovina", alpha_2: "BA" },
+  { name: "Botswana", alpha_2: "BW" },
+  { name: "Brazil", alpha_2: "BR" },
+  { name: "Brunei", alpha_2: "BN" },
+  { name: "Bulgaria", alpha_2: "BG" },
+  { name: "Burkina Faso", alpha_2: "BF" },
+  { name: "Burundi", alpha_2: "BI" },
+  { name: "Cambodia", alpha_2: "KH" },
+  { name: "Cameroon", alpha_2: "CM" },
+  { name: "Canada", alpha_2: "CA" },
+  { name: "Cape Verde", alpha_2: "CV" },
+  { name: "Central African Republic", alpha_2: "CF" },
+  { name: "Chad", alpha_2: "TD" },
+  { name: "Chile", alpha_2: "CL" },
+  { name: "China", alpha_2: "CN" },
+  { name: "Colombia", alpha_2: "CO" },
+  { name: "Comoros", alpha_2: "KM" },
+  { name: "Congo", alpha_2: "CG" },
+  { name: "Costa Rica", alpha_2: "CR" },
+  { name: "Croatia", alpha_2: "HR" },
+  { name: "Cuba", alpha_2: "CU" },
+  { name: "Cyprus", alpha_2: "CY" },
+  { name: "Czech Republic", alpha_2: "CZ" },
+  { name: "Denmark", alpha_2: "DK" },
+  { name: "Djibouti", alpha_2: "DJ" },
+  { name: "Dominica", alpha_2: "DM" },
+  { name: "Dominican Republic", alpha_2: "DO" },
+  { name: "Ecuador", alpha_2: "EC" },
+  { name: "Egypt", alpha_2: "EG" },
+  { name: "El Salvador", alpha_2: "SV" },
+  { name: "Equatorial Guinea", alpha_2: "GQ" },
+  { name: "Eritrea", alpha_2: "ER" },
+  { name: "Estonia", alpha_2: "EE" },
+  { name: "Ethiopia", alpha_2: "ET" },
+  { name: "Fiji", alpha_2: "FJ" },
+  { name: "Finland", alpha_2: "FI" },
+  { name: "France", alpha_2: "FR" },
+  { name: "Gabon", alpha_2: "GA" },
+  { name: "Gambia", alpha_2: "GM" },
+  { name: "Georgia", alpha_2: "GE" },
+  { name: "Germany", alpha_2: "DE" },
+  { name: "Ghana", alpha_2: "GH" },
+  { name: "Greece", alpha_2: "GR" },
+  { name: "Grenada", alpha_2: "GD" },
+  { name: "Guatemala", alpha_2: "GT" },
+  { name: "Guinea", alpha_2: "GN" },
+  { name: "Guinea-Bissau", alpha_2: "GW" },
+  { name: "Guyana", alpha_2: "GY" },
+  { name: "Haiti", alpha_2: "HT" },
+  { name: "Honduras", alpha_2: "HN" },
+  { name: "Hungary", alpha_2: "HU" },
+  { name: "Iceland", alpha_2: "IS" },
+  { name: "India", alpha_2: "IN" },
+  { name: "Indonesia", alpha_2: "ID" },
+  { name: "Iran", alpha_2: "IR" },
+  { name: "Iraq", alpha_2: "IQ" },
+  { name: "Ireland", alpha_2: "IE" },
+  { name: "Israel", alpha_2: "IL" },
+  { name: "Italy", alpha_2: "IT" },
+  { name: "Jamaica", alpha_2: "JM" },
+  { name: "Japan", alpha_2: "JP" },
+  { name: "Jordan", alpha_2: "JO" },
+  { name: "Kazakhstan", alpha_2: "KZ" },
+  { name: "Kenya", alpha_2: "KE" },
+  { name: "Kiribati", alpha_2: "KI" },
+  { name: "North Korea", alpha_2: "KP" },
+  { name: "South Korea", alpha_2: "KR" },
+  { name: "Kuwait", alpha_2: "KW" },
+  { name: "Kyrgyzstan", alpha_2: "KG" },
+  { name: "Laos", alpha_2: "LA" },
+  { name: "Latvia", alpha_2: "LV" },
+  { name: "Lebanon", alpha_2: "LB" },
+  { name: "Lesotho", alpha_2: "LS" },
+  { name: "Liberia", alpha_2: "LR" },
+  { name: "Libya", alpha_2: "LY" },
+  { name: "Liechtenstein", alpha_2: "LI" },
+  { name: "Lithuania", alpha_2: "LT" },
+  { name: "Luxembourg", alpha_2: "LU" },
+  { name: "Madagascar", alpha_2: "MG" },
+  { name: "Malawi", alpha_2: "MW" },
+  { name: "Malaysia", alpha_2: "MY" },
+  { name: "Maldives", alpha_2: "MV" },
+  { name: "Mali", alpha_2: "ML" },
+  { name: "Malta", alpha_2: "MT" },
+  { name: "Marshall Islands", alpha_2: "MH" },
+  { name: "Mauritania", alpha_2: "MR" },
+  { name: "Mauritius", alpha_2: "MU" },
+  { name: "Mexico", alpha_2: "MX" },
+  { name: "Micronesia", alpha_2: "FM" },
+  { name: "Moldova", alpha_2: "MD" },
+  { name: "Monaco", alpha_2: "MC" },
+  { name: "Mongolia", alpha_2: "MN" },
+  { name: "Montenegro", alpha_2: "ME" },
+  { name: "Morocco", alpha_2: "MA" },
+  { name: "Mozambique", alpha_2: "MZ" },
+  { name: "Myanmar", alpha_2: "MM" },
+  { name: "Namibia", alpha_2: "NA" },
+  { name: "Nauru", alpha_2: "NR" },
+  { name: "Nepal", alpha_2: "NP" },
+  { name: "Netherlands", alpha_2: "NL" },
+  { name: "New Zealand", alpha_2: "NZ" },
+  { name: "Nicaragua", alpha_2: "NI" },
+  { name: "Niger", alpha_2: "NE" },
+  { name: "Nigeria", alpha_2: "NG" },
+  { name: "North Macedonia", alpha_2: "MK" },
+  { name: "Norway", alpha_2: "NO" },
+  { name: "Oman", alpha_2: "OM" },
+  { name: "Pakistan", alpha_2: "PK" },
+  { name: "Palau", alpha_2: "PW" },
+  { name: "Palestine", alpha_2: "PS" },
+  { name: "Panama", alpha_2: "PA" },
+  { name: "Papua New Guinea", alpha_2: "PG" },
+  { name: "Paraguay", alpha_2: "PY" },
+  { name: "Peru", alpha_2: "PE" },
+  { name: "Philippines", alpha_2: "PH" },
+  { name: "Poland", alpha_2: "PL" },
+  { name: "Portugal", alpha_2: "PT" },
+  { name: "Qatar", alpha_2: "QA" },
+  { name: "Romania", alpha_2: "RO" },
+  { name: "Russia", alpha_2: "RU" },
+  { name: "Rwanda", alpha_2: "RW" },
+  { name: "Saint Kitts and Nevis", alpha_2: "KN" },
+  { name: "Saint Lucia", alpha_2: "LC" },
+  { name: "Saint Vincent and the Grenadines", alpha_2: "VC" },
+  { name: "Samoa", alpha_2: "WS" },
+  { name: "San Marino", alpha_2: "SM" },
+  { name: "Sao Tome and Principe", alpha_2: "ST" },
+  { name: "Saudi Arabia", alpha_2: "SA" },
+  { name: "Senegal", alpha_2: "SN" },
+  { name: "Serbia", alpha_2: "RS" },
+  { name: "Seychelles", alpha_2: "SC" },
+  { name: "Sierra Leone", alpha_2: "SL" },
+  { name: "Singapore", alpha_2: "SG" },
+  { name: "Slovakia", alpha_2: "SK" },
+  { name: "Slovenia", alpha_2: "SI" },
+  { name: "Solomon Islands", alpha_2: "SB" },
+  { name: "Somalia", alpha_2: "SO" },
+  { name: "South Africa", alpha_2: "ZA" },
+  { name: "South Sudan", alpha_2: "SS" },
+  { name: "Spain", alpha_2: "ES" },
+  { name: "Sri Lanka", alpha_2: "LK" },
+  { name: "Sudan", alpha_2: "SD" },
+  { name: "Suriname", alpha_2: "SR" },
+  { name: "Sweden", alpha_2: "SE" },
+  { name: "Switzerland", alpha_2: "CH" },
+  { name: "Syria", alpha_2: "SY" },
+  { name: "Taiwan", alpha_2: "TW" },
+  { name: "Tajikistan", alpha_2: "TJ" },
+  { name: "Tanzania", alpha_2: "TZ" },
+  { name: "Thailand", alpha_2: "TH" },
+  { name: "Timor-Leste", alpha_2: "TL" },
+  { name: "Togo", alpha_2: "TG" },
+  { name: "Tonga", alpha_2: "TO" },
+  { name: "Trinidad and Tobago", alpha_2: "TT" },
+  { name: "Tunisia", alpha_2: "TN" },
+  { name: "Turkey", alpha_2: "TR" },
+  { name: "Turkmenistan", alpha_2: "TM" },
+  { name: "Tuvalu", alpha_2: "TV" },
+  { name: "Uganda", alpha_2: "UG" },
+  { name: "Ukraine", alpha_2: "UA" },
+  { name: "United Arab Emirates", alpha_2: "AE" },
+  { name: "United Kingdom", alpha_2: "GB" },
+  { name: "United States", alpha_2: "US" },
+  { name: "Uruguay", alpha_2: "UY" },
+  { name: "Uzbekistan", alpha_2: "UZ" },
+  { name: "Vanuatu", alpha_2: "VU" },
+  { name: "Vatican City", alpha_2: "VA" },
+  { name: "Venezuela", alpha_2: "VE" },
+  { name: "Vietnam", alpha_2: "VN" },
+  { name: "Yemen", alpha_2: "YE" },
+  { name: "Zambia", alpha_2: "ZM" },
+  { name: "Zimbabwe", alpha_2: "ZW" }
+];
+
+// Sectors data (same as popup.js)
+const osHubSectors = [
+  { name: "Agriculture" },
+  { name: "Animal Production" },
+  { name: "Apparel" },
+  { name: "Apparel Accessories" },
+  { name: "Appliances"},
+  { name: "Aquaculture"},
+  { name: "Automotive"},
+  { name: "Biotechnology" },
+  { name: "Coal" },
+  { name: "Construction"},
+  { name: "Electronics" },
+  { name: "Energy" },
+  { name: "Fishing" },
+  { name: "Food & Beverage" },
+  { name: "Footwear" },
+  { name: "Forestry" },
+  { name: "Furniture" },
+  { name: "Hard Goods" },
+  { name: "Health" },
+  { name: "Healthcare" },
+  { name: "Home" },
+  { name: "Home Accessories" },
+  { name: "Home Furnishings" },
+  { name: "Home Textiles" },
+  { name: "Jewelry" },
+  { name: "Leather" },
+  { name: "Logging" },
+  { name: "Manufacturing" },
+  { name: "Mining" },
+  { name: "Nondurable Goods" },
+  { name: "Oil & Gas" },
+  { name: "Packaging" },
+  { name: "Paper Products" },
+  { name: "Personal Care Products" },
+  { name: "Pharmaceuticals" },
+  { name: "Plastics" },
+  { name: "Printing" },
+  { name: "Renewable Energy" },
+  { name: "Rubber Products" },
+  { name: "Sporting Goods" },
+  { name: "Storage" },
+  { name: "Textiles" },
+  { name: "Toys" },
+  { name: "Tobacco Products" },
+  { name: "Utilities" },
+  { name: "Warehousing" },
+  { name: "Waste Management" },
+  { name: "Wholesale Trade" },
+  { name: "Wood Products" }
+];
+
+// Product types data (same as popup.js)
+const osHubProductTypes = [
+  { name: "Accessories" },
+  { name: "Bags" },
+  { name: "Belts" },
+  { name: "Bottoms" },
+  { name: "Dresses" },
+  { name: "Denim" },
+  { name: "Fabrics" },
+  { name: "Footwear" },
+  { name: "Gloves" },
+  { name: "Hats" },
+  { name: "Jackets" },
+  { name: "Jewelry" },
+  { name: "Knitwear" },
+  { name: "Leather Goods" },
+  { name: "Outerwear" },
+  { name: "Shirts" },
+  { name: "Sleepwear" },
+  { name: "Socks" },
+  { name: "Sportswear" },
+  { name: "Suits" },
+  { name: "Swimwear" },
+  { name: "T-shirts" },
+  { name: "Tops" },
+  { name: "Underwear" },
+  { name: "Uniforms" }
+];
+
+let osHubSelectedParentCompany = null;
+
+// Helper function to make API requests via background script
+function makeApiRequest(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({
+      action: 'makeApiRequest',
+      url: url,
+      method: options.method || 'GET',
+      headers: options.headers || {},
+      body: options.body || undefined
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      
+      if (response.success) {
+        resolve(response.data);
+      } else {
+        reject(new Error(response.error));
+      }
+    });
+  });
+}
+
+function initializeDataReviewPopup() {
+  const environmentSelect = document.getElementById('os-hub-environment');
+  const environmentBanner = document.getElementById('os-hub-environment-banner');
+  const apiKeyInput = document.getElementById('os-hub-api-key');
+  const apiStatus = document.getElementById('os-hub-api-status');
+  const facilityNameInput = document.getElementById('os-hub-facility-name');
+  const facilityAddressInput = document.getElementById('os-hub-facility-address');
+  const facilityCountryInput = document.getElementById('os-hub-facility-country');
+  const countryList = document.getElementById('os-hub-country-list');
+  const facilityProductTypeSelect = document.getElementById('os-hub-facility-product-type');
+  const facilitySectorSelect = document.getElementById('os-hub-facility-sector');
+  const facilityParentCompanyInput = document.getElementById('os-hub-facility-parent-company');
+  const parentCompanySuggestions = document.getElementById('os-hub-parent-company-suggestions');
+  const submitFacilityBtn = document.getElementById('os-hub-submit-btn');
+  const submitStatus = document.getElementById('os-hub-submit-status');
+
+  // Load saved environment setting
+  chrome.storage.sync.get(['environment'], function(result) {
+    if (result.environment) {
+      osHubCurrentEnvironment = result.environment;
+      environmentSelect.value = osHubCurrentEnvironment;
+      osHubApiBaseUrl = osHubEnvironments[osHubCurrentEnvironment].baseUrl;
+      updateEnvironmentBanner();
+      loadApiKey();
+    } else {
+      loadApiKey();
+    }
+  });
+
+  // Update the environment banner
+  function updateEnvironmentBanner() {
+    environmentBanner.textContent = `Data will be submitted to ${osHubEnvironments[osHubCurrentEnvironment].name}`;
+    if (osHubCurrentEnvironment === 'production') {
+      environmentBanner.classList.add('os-hub-production');
+    } else {
+      environmentBanner.classList.remove('os-hub-production');
+    }
+  }
+
+  // Function to load the API key for the current environment
+  function loadApiKey() {
+    const keyName = `apiKey_${osHubCurrentEnvironment}`;
+    chrome.storage.sync.get([keyName], function(result) {
+      if (result[keyName]) {
+        apiKeyInput.value = result[keyName];
+        apiStatus.textContent = 'API key loaded';
+        apiStatus.className = 'os-hub-status os-hub-success';
+      } else {
+        apiKeyInput.value = '';
+        apiStatus.textContent = 'No API key saved for this environment';
+        apiStatus.className = 'os-hub-status os-hub-error';
+      }
+    });
+  }
+
+  // Listen for environment changes
+  environmentSelect.addEventListener('change', function() {
+    osHubCurrentEnvironment = this.value;
+    osHubApiBaseUrl = osHubEnvironments[osHubCurrentEnvironment].baseUrl;
+    
+    // Save the selected environment
+    chrome.storage.sync.set({ environment: osHubCurrentEnvironment });
+    
+    // Update the banner
+    updateEnvironmentBanner();
+    
+    // Load the API key for the selected environment
+    loadApiKey();
+  });
+
+  // Populate country datalist
+  osHubCountries.forEach(country => {
+    const option = document.createElement('option');
+    option.value = country.alpha_2;
+    option.setAttribute('data-name', country.name);
+    option.text = `${country.name} (${country.alpha_2})`;
+    countryList.appendChild(option);
+  });
+
+  // Add event listener to handle country input
+  facilityCountryInput.addEventListener('input', function() {
+    const value = this.value.trim().toUpperCase();
+    
+    // If the input is exactly 2 characters, check if it's a valid country code
+    if (value.length === 2) {
+      const country = osHubCountries.find(c => c.alpha_2 === value);
+      if (country) {
+        this.value = value;
+        this.setAttribute('data-selected-country', country.name);
+      }
+    } else {
+      // Check if the input matches a country name
+      const country = osHubCountries.find(c => c.name.toUpperCase() === value.toUpperCase());
+      if (country) {
+        this.value = country.alpha_2;
+        this.setAttribute('data-selected-country', country.name);
+      }
+    }
+  });
+
+  // Add blur event to validate the country input
+  facilityCountryInput.addEventListener('blur', function() {
+    const value = this.value.trim().toUpperCase();
+    if (value.length > 0) {
+      const country = osHubCountries.find(c => c.alpha_2 === value);
+      if (!country) {
+        const countryByName = osHubCountries.find(c => c.name.toUpperCase() === value.toUpperCase());
+        if (countryByName) {
+          this.value = countryByName.alpha_2;
+          this.setAttribute('data-selected-country', countryByName.name);
+        } else {
+          this.setCustomValidity('Please select a valid country code');
+          return;
+        }
+      }
+      this.setCustomValidity('');
+    }
+  });
+
+  // Populate sector dropdown
+  osHubSectors.forEach(sector => {
+    const option = document.createElement('option');
+    option.value = sector.name;
+    option.textContent = sector.name;
+    facilitySectorSelect.appendChild(option);
+  });
+
+  // Populate product type dropdown
+  osHubProductTypes.forEach(productType => {
+    const option = document.createElement('option');
+    option.value = productType.name;
+    option.textContent = productType.name;
+    facilityProductTypeSelect.appendChild(option);
+  });
+
+  // Parent company search functionality
+  facilityParentCompanyInput.addEventListener('input', function() {
+    const query = this.value.trim();
+    
+    if (query.length < 2) {
+      parentCompanySuggestions.style.display = 'none';
+      osHubSelectedParentCompany = null;
+      return;
+    }
+    
+    const keyName = `apiKey_${osHubCurrentEnvironment}`;
+    chrome.storage.sync.get([keyName], function(result) {
+      if (!result[keyName]) return;
+      
+      makeApiRequest(osHubApiBaseUrl + osHubParentCompaniesEndpoint + '?name=' + encodeURIComponent(query) + '&size=10', {
+        headers: {
+          'Authorization': 'Token ' + result[keyName]
+        }
+      })
+      .then(companies => {
+        parentCompanySuggestions.innerHTML = '';
+        
+        if (companies.length === 0) {
+          parentCompanySuggestions.style.display = 'none';
+          return;
+        }
+        
+        companies.forEach(company => {
+          const item = document.createElement('div');
+          item.className = 'os-hub-suggestion-item';
+          item.textContent = company.name;
+          item.addEventListener('click', function() {
+            facilityParentCompanyInput.value = company.name;
+            osHubSelectedParentCompany = company.name;
+            parentCompanySuggestions.style.display = 'none';
+          });
+          parentCompanySuggestions.appendChild(item);
+        });
+        
+        parentCompanySuggestions.style.display = 'block';
+      })
+      .catch(error => {
+        console.error('Error searching parent companies:', error);
+        parentCompanySuggestions.style.display = 'none';
+      });
+    });
+  });
+
+  // Hide suggestions when clicking outside
+  document.addEventListener('click', function(event) {
+    if (event.target !== facilityParentCompanyInput) {
+      parentCompanySuggestions.style.display = 'none';
+    }
+  });
+
+  // Submit location to Open Supply Hub
+  submitFacilityBtn.addEventListener('click', function() {
+    // Get form values
+    const name = facilityNameInput.value.trim();
+    const address = facilityAddressInput.value.trim();
+    const country = facilityCountryInput.value.trim().toUpperCase();
+    const productType = facilityProductTypeSelect.value.trim();
+    const sector = facilitySectorSelect.value.trim();
+    const parentCompany = facilityParentCompanyInput.value.trim();
+    
+    // Validate required fields
+    if (!name || !address || !country) {
+      submitStatus.textContent = 'Name, address, and country are required';
+      submitStatus.className = 'os-hub-status os-hub-error';
+      return;
+    }
+    
+    // Get API key for the current environment
+    const keyName = `apiKey_${osHubCurrentEnvironment}`;
+    chrome.storage.sync.get([keyName], function(result) {
+      if (!result[keyName]) {
+        submitStatus.textContent = `Please enter your API key for ${osHubEnvironments[osHubCurrentEnvironment].name}`;
+        submitStatus.className = 'os-hub-status os-hub-error';
+        return;
+      }
+      
+      // Save the API key for future use
+      const storageData = {};
+      storageData[keyName] = apiKeyInput.value.trim();
+      chrome.storage.sync.set(storageData);
+      
+      submitStatus.textContent = 'Submitting...';
+      submitStatus.className = 'os-hub-status';
+      
+      // Prepare payload for Open Supply Hub API
+      const payload = {
+        name: name,
+        address: address,
+        country: country,
+        source_name: "OS Hub Chrome Extension - Facebook",
+        source_link: window.location.href
+      };
+      
+      // Add optional fields if provided
+      if (productType) payload.product_types = [productType];
+      if (sector) payload.sectors = [sector];
+      if (parentCompany) payload.parent_companies = [parentCompany];
+    
+      // Make API request to Open Supply Hub via background script
+      makeApiRequest(osHubApiBaseUrl + osHubApiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Token ' + (apiKeyInput.value.trim() || result[keyName])
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(data => {
+        submitStatus.textContent = '✓ Location submitted successfully!';
+        submitStatus.className = 'os-hub-status os-hub-success';
+        
+        // Show additional IDs if available
+        if (data.moderation_id) {
+          submitStatus.textContent += ` Moderation ID: ${data.moderation_id}`;
+        }
+        
+        if (data.os_id) {
+          submitStatus.textContent += ` OS ID: ${data.os_id}`;
+        }
+        
+        // Clear form after successful submission
+        facilityNameInput.value = '';
+        facilityAddressInput.value = '';
+        facilityCountryInput.value = '';
+        facilityProductTypeSelect.selectedIndex = 0;
+        facilitySectorSelect.selectedIndex = 0;
+        facilityParentCompanyInput.value = '';
+        osHubSelectedParentCompany = null;
+        
+        // Clear local storage
+        chrome.storage.local.remove(['facilityData']);
+        
+        // Auto-close after 3 seconds
+        setTimeout(() => {
+          const popup = document.getElementById('os-hub-data-review-popup');
+          if (popup) {
+            document.body.removeChild(popup);
+          }
+        }, 3000);
+      })
+      .catch(error => {
+        submitStatus.textContent = `Error: ${error.message}`;
+        submitStatus.className = 'os-hub-status os-hub-error';
+      });
+    });
+  });
 }
 
 // Start Facebook detection
