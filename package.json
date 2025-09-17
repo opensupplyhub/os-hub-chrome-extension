@@ -1,0 +1,32 @@
+{
+  "name": "os-hub-chrome-extension",
+  "version": "1.0.0",
+  "description": "Chrome extension for Open Supply Hub data submission with Playwright testing",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:docker": "docker-compose run --rm playwright-tests",
+    "test:docker-ui": "docker-compose up playwright-ui",
+    "docker:build": "docker-compose build",
+    "docker:dev": "docker-compose up playwright-dev",
+    "install:browsers": "playwright install"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@playwright/mcp": "latest"
+  },
+  "keywords": [
+    "chrome-extension",
+    "playwright",
+    "testing",
+    "e2e",
+    "mcp"
+  ],
+  "author": "Open Supply Hub",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

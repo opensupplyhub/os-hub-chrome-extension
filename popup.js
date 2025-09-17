@@ -15,6 +15,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const parentCompanySuggestions = document.getElementById('parent-company-suggestions');
   const submitFacilityBtn = document.getElementById('submit-facility');
   const submitStatus = document.getElementById('submit-status');
+  
+  // Multi-location elements
+  const locationSelector = document.getElementById('location-selector');
+  const locationSelectorGroup = document.getElementById('location-selector-group');
+  const locationCountInfo = document.getElementById('location-count-info');
 
   // Environment configuration
   const environments = {
@@ -31,6 +36,11 @@ document.addEventListener('DOMContentLoaded', function() {
   // Current environment settings
   let currentEnvironment = 'staging';
   let API_BASE_URL = environments.staging.baseUrl;
+  
+  // Multi-location data
+  let locationDatasets = [];
+  let currentLocationIndex = 0;
+  let detectedLocationCount = 0;
   const API_ENDPOINT = '/v1/production-locations/';
   const PARENT_COMPANIES_ENDPOINT = '/v1/parent-companies/';
   
@@ -498,8 +508,17 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Load any facility data from the content script
-  chrome.storage.local.get(['facilityData', 'sourceUrl'], function(result) {
-    if (result.facilityData) {
+  chrome.storage.local.get(['facilityData', 'locationDatasets', 'detectedLocationCount', 'currentLocationIndex', 'sourceUrl'], function(result) {
+    // Handle multiple locations if available
+    if (result.locationDatasets && result.locationDatasets.length > 0) {
+      locationDatasets = result.locationDatasets;
+      detectedLocationCount = result.detectedLocationCount || locationDatasets.length;
+      currentLocationIndex = result.currentLocationIndex || 0;
+      
+      setupLocationSelector();
+      loadLocationData(currentLocationIndex);
+    } else if (result.facilityData) {
+      // Single location fallback
       const data = result.facilityData;
       if (data.name) facilityNameInput.value = data.name;
       if (data.address) facilityAddressInput.value = data.address;
@@ -660,5 +679,119 @@ document.addEventListener('DOMContentLoaded', function() {
         });
       });
     });
+  });
+
+  // Function to setup location selector
+  function setupLocationSelector() {
+    if (locationDatasets.length <= 1) {
+      locationSelectorGroup.style.display = 'none';
+      return;
+    }
+
+    locationSelectorGroup.style.display = 'block';
+    locationCountInfo.textContent = `${detectedLocationCount} locations detected`;
+    
+    // Clear existing options
+    locationSelector.innerHTML = '';
+    
+    // Add options for each location
+    locationDatasets.forEach((location, index) => {
+      const option = document.createElement('option');
+      option.value = index;
+      option.textContent = index === 0 ? 'Headquarters/Location 1' : `Location ${index + 1}`;
+      locationSelector.appendChild(option);
+    });
+    
+    // Set current selection
+    locationSelector.value = currentLocationIndex;
+    
+    // Add change event listener
+    locationSelector.addEventListener('change', function() {
+      // Save current form data before switching
+      saveCurrentLocationData();
+      
+      // Switch to new location
+      currentLocationIndex = parseInt(this.value);
+      loadLocationData(currentLocationIndex);
+      
+      // Update storage
+      chrome.storage.local.set({
+        currentLocationIndex: currentLocationIndex
+      });
+    });
+  }
+
+  // Function to load data for a specific location
+  function loadLocationData(locationIndex) {
+    if (!locationDatasets[locationIndex]) return;
+    
+    const data = locationDatasets[locationIndex];
+    facilityNameInput.value = data.name || '';
+    facilityAddressInput.value = data.address || '';
+    
+    if (data.country) {
+      facilityCountryInput.value = data.country;
+    } else {
+      facilityCountryInput.value = '';
+    }
+    
+    // Set product type
+    if (data.productType) {
+      for (let i = 0; i < facilityProductTypeSelect.options.length; i++) {
+        if (facilityProductTypeSelect.options[i].value === data.productType) {
+          facilityProductTypeSelect.selectedIndex = i;
+          break;
+        }
+      }
+    } else {
+      facilityProductTypeSelect.selectedIndex = 0;
+    }
+    
+    // Set sector
+    if (data.sector) {
+      for (let i = 0; i < facilitySectorSelect.options.length; i++) {
+        if (facilitySectorSelect.options[i].value === data.sector) {
+          facilitySectorSelect.selectedIndex = i;
+          break;
+        }
+      }
+    } else {
+      facilitySectorSelect.selectedIndex = 0;
+    }
+    
+    facilityParentCompanyInput.value = data.parentCompany || '';
+  }
+
+  // Function to save current form data to location dataset
+  function saveCurrentLocationData() {
+    if (locationDatasets.length === 0) return;
+    
+    locationDatasets[currentLocationIndex] = {
+      name: facilityNameInput.value.trim(),
+      address: facilityAddressInput.value.trim(),
+      country: facilityCountryInput.value.trim(),
+      productType: facilityProductTypeSelect.value,
+      sector: facilitySectorSelect.value,
+      parentCompany: facilityParentCompanyInput.value.trim()
+    };
+    
+    // Also update the legacy facilityData if this is location 0
+    if (currentLocationIndex === 0) {
+      chrome.storage.local.set({
+        facilityData: locationDatasets[0],
+        locationDatasets: locationDatasets
+      });
+    } else {
+      chrome.storage.local.set({
+        locationDatasets: locationDatasets
+      });
+    }
+  }
+
+  // Add event listeners to auto-save data when form fields change
+  [facilityNameInput, facilityAddressInput, facilityCountryInput, 
+   facilityProductTypeSelect, facilitySectorSelect, facilityParentCompanyInput].forEach(element => {
+    element.addEventListener('change', saveCurrentLocationData);
+    element.addEventListener('input', saveCurrentLocationData);
   });
 });

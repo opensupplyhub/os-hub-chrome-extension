@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Single Location LinkedIn Test - Example Manufacturing Corp</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .linkedin-mock {
+            border: 2px solid #0077b5;
+            padding: 20px;
+            margin: 20px 0;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        .company-info h1 {
+            color: #0077b5;
+            margin: 0 0 10px 0;
+            font-size: 24px;
+        }
+        .company-details {
+            color: #666;
+            margin: 10px 0;
+            line-height: 1.5;
+        }
+        .test-controls {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .test-controls button {
+            background: #0077b5;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .test-controls button:hover {
+            background: #005885;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        #log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 6px;
+        }
+        .debug-info {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🏢 Single Location LinkedIn Test - Example Manufacturing Corp</h1>
+
+        <div class="warning">
+            <strong>🔍 Debugging Single Location Detection</strong><br>
+            This page simulates a typical single-location company LinkedIn About page structure
+            to test single location detection functionality.
+        </div>
+
+        <!-- Mock LinkedIn Company Page Structure based on typical single-location companies -->
+        <div class="linkedin-mock" id="mockLinkedInPage">
+            <h2>Mock LinkedIn About Page - Example Manufacturing Corp</h2>
+
+            <!-- Simulate minimal LinkedIn company page structure -->
+            <div class="company-info">
+                <div class="org-top-card-summary__title">
+                    <h1>Example Manufacturing Corp</h1>
+                </div>
+                <div class="company-details">
+                    <div class="org-page-details">
+                        <dt>Industry</dt>
+                        <dd>Manufacturing</dd>
+                    </div>
+                    <div class="org-page-details">
+                        <dt>Company size</dt>
+                        <dd>501-1,000 employees</dd>
+                    </div>
+                    <div class="org-page-details">
+                        <dt>Headquarters</dt>
+                        <dd>123 Industrial Way, Example City, CA 90210, US</dd>
+                    </div>
+                    <div class="org-page-details">
+                        <dt>Founded</dt>
+                        <dd>1995</dd>
+                    </div>
+                    <div class="org-page-details">
+                        <dt>Specialties</dt>
+                        <dd>Industrial manufacturing, quality assurance, and supply chain management</dd>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-controls">
+            <h3>🧪 Debug Controls</h3>
+            <button onclick="debugBusinessNameExtraction()">🔍 Debug Business Name Extraction</button>
+            <button onclick="debugLocationExtraction()">📍 Debug Location Extraction</button>
+            <button onclick="manualTest()">🚀 Manual LinkedIn Test</button>
+            <button onclick="forceSingleLocation()">⚡ Force Single Location</button>
+            <button onclick="clearLog()">🗑️ Clear Log</button>
+        </div>
+
+        <div class="debug-info" id="debugInfo">
+            <strong>Debug Information:</strong><br>
+            <span id="debugContent">Click debug buttons to see extraction details...</span>
+        </div>
+
+        <div id="log"></div>
+
+        <div class="success" style="display: none;" id="successMessage">
+            <strong>✅ Success!</strong><br>
+            <span id="successDetails">Test completed successfully!</span>
+        </div>
+    </div>
+
+    <!-- Load our extension scripts -->
+    <link rel="stylesheet" href="content.css">
+    <script>
+        // Mock Chrome APIs
+        window.chrome = {
+            runtime: {
+                sendMessage: function(message, callback) {
+                    log(`📤 Chrome API call: ${JSON.stringify(message)}`);
+                    if (callback) {
+                        setTimeout(() => callback({success: true}), 100);
+                    }
+                },
+                onMessage: {
+                    addListener: function(listener) {
+                        log('🔗 Message listener registered');
+                    }
+                }
+            },
+            storage: {
+                local: {
+                    set: function(data, callback) {
+                        log(`💾 Local storage set: ${JSON.stringify(Object.keys(data))}`);
+                        if (callback) callback();
+                    },
+                    get: function(keys, callback) {
+                        log(`📖 Local storage get: ${JSON.stringify(keys)}`);
+                        if (callback) callback({});
+                    },
+                    remove: function(keys, callback) {
+                        log(`🗑️ Local storage remove: ${JSON.stringify(keys)}`);
+                        if (callback) callback();
+                    }
+                },
+                sync: {
+                    set: function(data, callback) {
+                        log(`☁️ Sync storage set: ${JSON.stringify(Object.keys(data))}`);
+                        if (callback) callback();
+                    },
+                    get: function(keys, callback) {
+                        log(`☁️ Sync storage get: ${JSON.stringify(keys)}`);
+                        const result = {};
+                        if (keys.includes && keys.includes('apiKey_staging')) {
+                            result.apiKey_staging = 'YOUR_STAGING_API_KEY_HERE';
+                        } else if (keys === 'apiKey_staging') {
+                            result.apiKey_staging = 'YOUR_STAGING_API_KEY_HERE';
+                        }
+                        if (callback) callback(result);
+                    }
+                }
+            }
+        };
+
+        // Mock LinkedIn environment
+        Object.defineProperty(window.location, 'hostname', {
+            writable: false,
+            value: 'www.linkedin.com'
+        });
+        Object.defineProperty(window.location, 'pathname', {
+            writable: false,
+            value: '/company/grande-cheese-company/about/'
+        });
+        Object.defineProperty(window.location, 'href', {
+            writable: false,
+            value: 'https://www.linkedin.com/company/grande-cheese-company/about/'
+        });
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateDebugInfo(content) {
+            document.getElementById('debugContent').innerHTML = content;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            document.getElementById('successMessage').style.display = 'none';
+            updateDebugInfo('Debug cleared...');
+        }
+
+        function debugBusinessNameExtraction() {
+            log('🔍 Starting business name extraction debug...');
+            updateDebugInfo('Debugging business name extraction...');
+
+            try {
+                // Test all selectors
+                const selectors = [
+                    '.org-top-card-summary__title h1',
+                    '.org-top-card-summary-info__title h1',
+                    '.org-top-card-summary__info h1',
+                    'h1[data-test-id="org-top-card-summary-info-title"]',
+                    '.break-words h1',
+                    '.org-top-card-summary h1',
+                    '.org-page-header h1',
+                    '.org-top-card-summary__title',
+                    '.org-top-card-summary-info__title',
+                    '.break-words',
+                    'h1'
+                ];
+
+                let foundElements = [];
+
+                selectors.forEach(selector => {
+                    const element = document.querySelector(selector);
+                    if (element) {
+                        foundElements.push({
+                            selector: selector,
+                            text: element.textContent.trim(),
+                            element: element
+                        });
+                        log(`✅ Found with ${selector}: "${element.textContent.trim()}"`);
+                    } else {
+                        log(`❌ Not found: ${selector}`);
+                    }
+                });
+
+                // Try the actual function
+                const businessName = extractLinkedInBusinessName();
+                log(`🎯 Final business name: "${businessName}"`);
+
+                updateDebugInfo(`
+                    <strong>Business Name Debug Results:</strong><br>
+                    Found ${foundElements.length} matching elements<br>
+                    Final result: "${businessName}"<br>
+                    <br>
+                    <strong>All found elements:</strong><br>
+                    ${foundElements.map(el => `${el.selector}: "${el.text}"`).join('<br>')}
+                `);
+
+                if (businessName) {
+                    showSuccess(`Business name extracted: ${businessName}`);
+                }
+
+            } catch (error) {
+                log(`💥 Business name debug error: ${error.message}`);
+                updateDebugInfo(`Error: ${error.message}`);
+            }
+        }
+
+        function debugLocationExtraction() {
+            log('📍 Starting location extraction debug...');
+            updateDebugInfo('Debugging location extraction...');
+
+            try {
+                const locations = extractLinkedInLocations();
+                log(`🎯 Extracted ${locations.length} locations:`);
+
+                locations.forEach((loc, i) => {
+                    log(`  ${i + 1}. ${loc.name}: ${loc.address} (${loc.country})`);
+                });
+
+                updateDebugInfo(`
+                    <strong>Location Extraction Results:</strong><br>
+                    Found ${locations.length} locations<br>
+                    <br>
+                    <strong>Locations:</strong><br>
+                    ${locations.map((loc, i) => `${i + 1}. ${loc.name}<br>&nbsp;&nbsp;&nbsp;&nbsp;Address: ${loc.address || 'Not found'}<br>&nbsp;&nbsp;&nbsp;&nbsp;Country: ${loc.country || 'Not found'}`).join('<br>')}
+                `);
+
+                if (locations.length > 0) {
+                    showSuccess(`Extracted ${locations.length} locations successfully!`);
+                } else {
+                    log('⚠️ No locations extracted');
+                }
+
+            } catch (error) {
+                log(`💥 Location extraction debug error: ${error.message}`);
+                updateDebugInfo(`Error: ${error.message}`);
+            }
+        }
+
+        function manualTest() {
+            log('🚀 Running manual LinkedIn test...');
+            updateDebugInfo('Running manual test...');
+
+            try {
+                const result = osHubManualLinkedInTest();
+                log(`🎯 Manual test result: ${JSON.stringify(result, null, 2)}`);
+
+                updateDebugInfo(`
+                    <strong>Manual Test Results:</strong><br>
+                    Success: ${result.success}<br>
+                    Business Name: ${result.businessName || 'Not found'}<br>
+                    Locations: ${result.locations.length}<br>
+                    Message: ${result.message}
+                `);
+
+                if (result.success) {
+                    showSuccess(result.message);
+                } else {
+                    log(`⚠️ ${result.message}`);
+                }
+
+            } catch (error) {
+                log(`💥 Manual test error: ${error.message}`);
+                updateDebugInfo(`Error: ${error.message}`);
+            }
+        }
+
+        function forceSingleLocation() {
+            log('⚡ Forcing single location creation...');
+            updateDebugInfo('Forcing single location...');
+
+            try {
+                const result = osHubTestSingleLocation();
+                log(`🎯 Force single location result: ${JSON.stringify(result, null, 2)}`);
+
+                updateDebugInfo(`
+                    <strong>Force Single Location Results:</strong><br>
+                    Success: ${result.success}<br>
+                    Location: ${result.location ? result.location.name : 'None'}<br>
+                    Message: ${result.message}
+                `);
+
+                if (result.success) {
+                    showSuccess(result.message);
+                } else {
+                    log(`⚠️ ${result.message}`);
+                }
+
+            } catch (error) {
+                log(`💥 Force single location error: ${error.message}`);
+                updateDebugInfo(`Error: ${error.message}`);
+            }
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            const detailsSpan = document.getElementById('successDetails');
+            detailsSpan.textContent = message;
+            successDiv.style.display = 'block';
+        }
+
+        // Load content script
+        log('🔄 Loading extension content script...');
+    </script>
+    <script src="content.js"></script>
+    <script>
+        // Initialize
+        window.addEventListener('load', () => {
+            log('🎉 Single location LinkedIn test page loaded!');
+            log('🏢 Testing Example Manufacturing Corp structure');
+            log('📝 Use the debug buttons to test different aspects of extraction');
+            updateDebugInfo('Page loaded - ready for testing');
+
+            // Auto-run initial tests
+            setTimeout(() => {
+                log('🔄 Running initial automatic tests...');
+                debugBusinessNameExtraction();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

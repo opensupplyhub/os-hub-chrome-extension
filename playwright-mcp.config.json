@@ -1,0 +1,52 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "isolated": false,
+    "userDataDir": "./test-browser-data",
+    "launchOptions": {
+      "channel": "chromium",
+      "headless": false,
+      "executablePath": null,
+      "args": [
+        "--disable-extensions-except=./",
+        "--load-extension=./",
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-web-security",
+        "--disable-setuid-sandbox",
+        "--disable-gpu",
+        "--no-first-run",
+        "--no-default-browser-check"
+      ]
+    },
+    "contextOptions": {
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "acceptDownloads": true,
+      "permissions": ["clipboard-read", "clipboard-write"]
+    }
+  },
+  "server": {
+    "port": 8931,
+    "host": "localhost"
+  },
+  "capabilities": [
+    "tabs",
+    "install",
+    "pdf",
+    "vision"
+  ],
+  "outputDir": "./test-results/mcp-outputs",
+  "network": {
+    "allowedOrigins": [
+      "https://opensupplyhub.org",
+      "https://staging.opensupplyhub.org",
+      "https://example.com",
+      "chrome-extension://*"
+    ],
+    "blockedOrigins": []
+  },
+  "imageResponses": "allow"
+}

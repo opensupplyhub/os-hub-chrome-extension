@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn to Open Supply Hub - Live Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .linkedin-mock {
+            border: 2px solid #0077b5;
+            padding: 20px;
+            margin: 20px 0;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        .org-top-card-summary__title h1 {
+            color: #0077b5;
+            margin: 0 0 10px 0;
+        }
+        .org-top-card-summary__headquarter {
+            color: #666;
+            margin: 10px 0;
+        }
+        .org-page-details {
+            margin: 15px 0;
+        }
+        .org-page-details dt {
+            font-weight: bold;
+            color: #333;
+            margin: 10px 0 5px 0;
+        }
+        .org-page-details dd {
+            color: #666;
+            margin: 0 0 10px 20px;
+            line-height: 1.4;
+        }
+        .test-controls {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .test-controls button {
+            background: #0077b5;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .test-controls button:hover {
+            background: #005885;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        #log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            border-radius: 6px;
+        }
+        .company-example {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f9f9f9;
+            border-left: 4px solid #0077b5;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🏭 LinkedIn to Open Supply Hub - Live Integration Test</h1>
+
+        <div class="warning">
+            <strong>⚠️ Live API Testing</strong><br>
+            This page will make real API calls to staging.opensupplyhub.org.
+            Test data will be submitted to the Open Supply Hub staging environment.
+        </div>
+
+        <div class="info">
+            <strong>📋 Test Scenario</strong><br>
+            This test simulates visiting a LinkedIn company About page, extracting business locations,
+            and submitting them to Open Supply Hub using the Chrome extension functionality.
+        </div>
+
+        <!-- Mock LinkedIn Company Page -->
+        <div class="linkedin-mock" id="mockLinkedInPage">
+            <h2>Mock LinkedIn Company About Page</h2>
+
+            <div class="company-example">
+                <strong>🏢 Example Company #1: Multi-Location Manufacturing</strong>
+                <div class="org-top-card-summary__title">
+                    <h1>Demo Manufacturing Solutions Inc.</h1>
+                </div>
+                <div class="org-top-card-summary__headquarter">
+                    500 Innovation Drive, Tech Valley, CA 94000, United States
+                </div>
+                <div class="org-page-details">
+                    <dt>Additional Locations</dt>
+                    <dd>1200 Factory Boulevard, Manufacturing City, MI 48000, United States
+                        750 Assembly Avenue, Production Town, TX 75000, United States
+                        300 Distribution Way, Logistics Hub, FL 33000, United States</dd>
+                </div>
+                <div class="org-page-details">
+                    <dt>Industry</dt>
+                    <dd>Manufacturing</dd>
+                </div>
+                <div class="org-page-details">
+                    <dt>Company size</dt>
+                    <dd>1,001-5,000 employees</dd>
+                </div>
+            </div>
+
+            <div class="company-example" style="display: none;" id="company2">
+                <strong>🏭 Example Company #2: Regional Producer</strong>
+                <div class="org-top-card-summary__title">
+                    <h1>Demo Regional Industries</h1>
+                </div>
+                <div class="org-top-card-summary__headquarter">
+                    85 Business Park Drive, Demo Valley, CA 95000, United States
+                </div>
+                <div class="org-page-details">
+                    <dt>Locations</dt>
+                    <dd>125 Commerce Street, Example City, CA 95001, United States</dd>
+                </div>
+                <div class="org-page-details">
+                    <dt>Industry</dt>
+                    <dd>Manufacturing</dd>
+                </div>
+            </div>
+
+            <div class="company-example" style="display: none;" id="company3">
+                <strong>💻 Example Company #3: Tech Startup</strong>
+                <div class="org-top-card-summary__title">
+                    <h1>Demo Software Solutions</h1>
+                </div>
+                <div class="org-top-card-summary__headquarter">
+                    1000 Innovation Boulevard, Tech City, CA 94301, United States
+                </div>
+                <div class="org-page-details">
+                    <dt>Industry</dt>
+                    <dd>Software Development</dd>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-controls">
+            <h3>🧪 Test Controls</h3>
+            <button onclick="switchCompany(1)">Test Company #1 (4 locations)</button>
+            <button onclick="switchCompany(2)">Test Company #2 (2 locations)</button>
+            <button onclick="switchCompany(3)">Test Company #3 (1 location)</button>
+            <br><br>
+            <button onclick="extractLinkedInData()">🔍 Extract LinkedIn Data</button>
+            <button onclick="showExtractionPopup()">📋 Show Extraction Popup</button>
+            <button onclick="testBulkSubmission()">🚀 Test Live API Submission</button>
+            <button onclick="clearLog()">🗑️ Clear Log</button>
+        </div>
+
+        <div id="log"></div>
+
+        <div class="success" style="display: none;" id="successMessage">
+            <strong>✅ Success!</strong><br>
+            <span id="successDetails">Test completed successfully!</span>
+        </div>
+    </div>
+
+    <!-- Load our extension scripts -->
+    <link rel="stylesheet" href="content.css">
+    <script>
+        // Mock Chrome APIs
+        window.chrome = {
+            runtime: {
+                sendMessage: function(message, callback) {
+                    log(`📤 Chrome API call: ${JSON.stringify(message)}`);
+
+                    // Mock API request handling
+                    if (message.action === 'makeApiRequest') {
+                        handleMockApiRequest(message).then(result => {
+                            if (callback) callback(result);
+                        });
+                        return;
+                    }
+
+                    if (callback) {
+                        setTimeout(() => callback({success: true}), 100);
+                    }
+                },
+                onMessage: {
+                    addListener: function(listener) {
+                        log('🔗 Message listener registered');
+                    }
+                }
+            },
+            storage: {
+                local: {
+                    set: function(data, callback) {
+                        log(`💾 Local storage set: ${JSON.stringify(Object.keys(data))}`);
+                        if (callback) callback();
+                    },
+                    get: function(keys, callback) {
+                        log(`📖 Local storage get: ${JSON.stringify(keys)}`);
+                        if (callback) callback({});
+                    },
+                    remove: function(keys, callback) {
+                        log(`🗑️ Local storage remove: ${JSON.stringify(keys)}`);
+                        if (callback) callback();
+                    }
+                },
+                sync: {
+                    set: function(data, callback) {
+                        log(`☁️ Sync storage set: ${JSON.stringify(Object.keys(data))}`);
+                        if (callback) callback();
+                    },
+                    get: function(keys, callback) {
+                        log(`☁️ Sync storage get: ${JSON.stringify(keys)}`);
+                        // Return saved API key for staging
+                        const result = {};
+                        if (keys.includes && keys.includes('apiKey_staging')) {
+                            result.apiKey_staging = 'YOUR_STAGING_API_KEY_HERE';
+                        } else if (keys === 'apiKey_staging') {
+                            result.apiKey_staging = 'YOUR_STAGING_API_KEY_HERE';
+                        }
+                        if (callback) callback(result);
+                    }
+                }
+            }
+        };
+
+        // Mock LinkedIn environment
+        Object.defineProperty(window.location, 'hostname', {
+            writable: false,
+            value: 'www.linkedin.com'
+        });
+        Object.defineProperty(window.location, 'pathname', {
+            writable: false,
+            value: '/company/test-manufacturing/about/'
+        });
+        Object.defineProperty(window.location, 'href', {
+            writable: false,
+            value: 'https://www.linkedin.com/company/test-manufacturing/about/'
+        });
+
+        // Handle real API requests
+        async function handleMockApiRequest(message) {
+            const { url, method, headers, body } = message;
+
+            log(`🌐 Making ${method} request to: ${url}`);
+            log(`📋 Headers: ${JSON.stringify(headers)}`);
+            if (body) {
+                log(`📦 Body: ${body}`);
+            }
+
+            try {
+                const response = await fetch(url, {
+                    method: method || 'GET',
+                    headers: headers || {},
+                    body: body || undefined
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    log(`❌ API Error ${response.status}: ${JSON.stringify(errorData)}`);
+                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                }
+
+                const data = await response.json();
+                log(`✅ API Success: ${JSON.stringify(data)}`);
+                return { success: true, data: data };
+
+            } catch (error) {
+                log(`💥 Request failed: ${error.message}`);
+                return { success: false, error: error.message };
+            }
+        }
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            document.getElementById('successMessage').style.display = 'none';
+        }
+
+        function switchCompany(companyNum) {
+            // Hide all companies
+            document.querySelectorAll('.company-example').forEach(el => {
+                el.style.display = 'none';
+            });
+
+            // Show selected company
+            if (companyNum === 1) {
+                document.querySelector('.company-example').style.display = 'block';
+            } else {
+                document.getElementById(`company${companyNum}`).style.display = 'block';
+            }
+
+            log(`🏢 Switched to test company #${companyNum}`);
+        }
+
+        function extractLinkedInData() {
+            log('🔍 Starting LinkedIn data extraction...');
+
+            try {
+                const businessName = extractLinkedInBusinessName();
+                log(`📛 Business name: ${businessName}`);
+
+                const locations = extractLinkedInLocations();
+                log(`📍 Found ${locations.length} locations:`);
+                locations.forEach((loc, i) => {
+                    log(`  ${i + 1}. ${loc.name}: ${loc.address} (${loc.country})`);
+                });
+
+                if (locations.length > 0) {
+                    // Store the locations
+                    storeLinkedInLocations(locations);
+                    log(`💾 Stored ${locations.length} locations in extension storage`);
+
+                    showSuccess(`Extracted ${locations.length} locations successfully!`);
+                } else {
+                    log('⚠️ No locations extracted');
+                }
+
+            } catch (error) {
+                log(`💥 Extraction error: ${error.message}`);
+            }
+        }
+
+        function showExtractionPopup() {
+            log('📋 Showing LinkedIn extraction popup...');
+
+            try {
+                showLinkedInExtractionPopup();
+                log('✅ Extraction popup displayed');
+            } catch (error) {
+                log(`💥 Popup error: ${error.message}`);
+            }
+        }
+
+        async function testBulkSubmission() {
+            log('🚀 Starting live API submission test...');
+
+            try {
+                // First extract the data
+                const locations = extractLinkedInLocations();
+                if (locations.length === 0) {
+                    log('❌ No locations to submit. Please extract data first.');
+                    return;
+                }
+
+                log(`📦 Preparing to submit ${locations.length} locations to staging API...`);
+
+                // Show the bulk submission popup with real API integration
+                showLinkedInBulkSubmissionPopup(locations);
+                log('📋 Bulk submission popup displayed - you can now test real API submission!');
+
+                // Auto-fill the API key
+                setTimeout(() => {
+                    const apiKeyInput = document.getElementById('os-hub-bulk-api-key');
+                    if (apiKeyInput) {
+                        apiKeyInput.value = 'YOUR_STAGING_API_KEY_HERE';
+                        log('🔑 API key auto-filled for staging environment');
+                    }
+                }, 500);
+
+            } catch (error) {
+                log(`💥 Bulk submission error: ${error.message}`);
+            }
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            const detailsSpan = document.getElementById('successDetails');
+            detailsSpan.textContent = message;
+            successDiv.style.display = 'block';
+        }
+
+        // Load content script
+        log('🔄 Loading extension content script...');
+    </script>
+    <script src="content.js"></script>
+    <script>
+        // Initialize
+        window.addEventListener('load', () => {
+            log('🎉 LinkedIn to Open Supply Hub test page loaded!');
+            log('📝 Instructions:');
+            log('1. Choose a test company using the buttons above');
+            log('2. Click "Extract LinkedIn Data" to test data extraction');
+            log('3. Click "Test Live API Submission" to submit to staging.opensupplyhub.org');
+            log('4. Use the extraction popup to review and submit data');
+            log('');
+            log('🏢 Currently showing: Multi-Location Manufacturing Company');
+
+            // Auto-select first company
+            switchCompany(1);
+        });
+    </script>
+</body>
+</html>

@@ -8,6 +8,11 @@ let facilityData = {
   parentCompany: ''
 };
 
+// Multi-location support
+let locationDatasets = [];
+let currentLocationIndex = 0;
+let detectedLocationCount = 0;
+
 // Facebook detection and extraction
 let facebookPopupShown = false;
 
@@ -22,17 +27,55 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   } else if (request.action === 'saveFacilityData') {
     const field = request.field;
     const selection = window.getSelection().toString().trim();
+    const locationIndex = request.locationIndex || 0;
+    
+    // Initialize location datasets if not already done
+    if (locationDatasets.length === 0 && detectedLocationCount > 1) {
+      initializeLocationDatasets();
+    }
     
     // Save the selected text to the appropriate field
     if (field && selection) {
-      facilityData[field] = selection;
-      
-      // Save to local storage for the popup
-      chrome.storage.local.set({facilityData: facilityData});
+      // Handle multiple locations
+      if (locationDatasets.length > 0) {
+        // Ensure we have enough location slots
+        while (locationDatasets.length <= locationIndex) {
+          locationDatasets.push({
+            name: '',
+            address: '',
+            country: '',
+            productType: '',
+            sector: '',
+            parentCompany: ''
+          });
+        }
+        
+        // Update the specific location dataset
+        locationDatasets[locationIndex][field] = selection;
+        
+        // Also update main facilityData for backward compatibility (location 0)
+        if (locationIndex === 0) {
+          facilityData[field] = selection;
+        }
+        
+        // Save to local storage
+        chrome.storage.local.set({
+          facilityData: facilityData,
+          locationDatasets: locationDatasets,
+          currentLocationIndex: locationIndex,
+          detectedLocationCount: detectedLocationCount
+        });
+        
+        console.log(`[OS-Hub] Saved ${field} = "${selection}" to location ${locationIndex}`);
+      } else {
+        // Single location - use existing behavior
+        facilityData[field] = selection;
+        chrome.storage.local.set({facilityData: facilityData});
+      }
       
       // Provide visual feedback
-      highlightSelectedText(field);
-      sendResponse({success: true, field: field, value: selection});
+      highlightSelectedText(field, locationIndex);
+      sendResponse({success: true, field: field, value: selection, locationIndex: locationIndex});
     } else {
       sendResponse({success: false, error: 'No selection or invalid field'});
     }
@@ -41,7 +84,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
 });
 
 // Function to highlight selected text
-function highlightSelectedText(field) {
+function highlightSelectedText(field, locationIndex = 0) {
   const selection = window.getSelection();
   
   if (selection.rangeCount > 0) {
@@ -52,9 +95,12 @@ function highlightSelectedText(field) {
     const highlightSpan = document.createElement('span');
     highlightSpan.className = 'os-hub-highlight';
     
-    // Add specific class based on the field type
+    // Add specific class based on the field type and location
     if (field) {
       highlightSpan.classList.add(`os-hub-${field}`);
+      if (locationIndex > 0) {
+        highlightSpan.classList.add(`os-hub-location-${locationIndex}`);
+      }
     }
     
     // Apply the highlighting
@@ -1348,6 +1394,1464 @@ function initializeDataReviewPopup() {
   });
 }
 
-// Start Facebook detection
+// LinkedIn location detection and extraction functions
+function detectLinkedInLocations() {
+  if (!window.location.hostname.includes('linkedin.com')) {
+    return 0;
+  }
+
+  if (!window.location.pathname.includes('/about/')) {
+    return 0; // Only detect on About pages
+  }
+
+  console.log('[OS-Hub] Detecting LinkedIn locations on About page');
+
+  let locationCount = 0;
+
+  // Look for headquarters section
+  const hqSelectors = [
+    '.org-top-card-summary__headquarter',
+    '.org-about-us__headquarter',
+    '[data-test-id="about-us-headquarters"]'
+  ];
+
+  for (const selector of hqSelectors) {
+    const hqElement = document.querySelector(selector);
+    if (hqElement && hqElement.textContent.trim()) {
+      locationCount++;
+      console.log('[OS-Hub] Found headquarters location');
+      break;
+    }
+  }
+
+  // Manual search for "Headquarters" text
+  if (locationCount === 0) {
+    const dtElements = document.querySelectorAll('.org-page-details dt');
+    for (const dt of dtElements) {
+      if (dt.textContent.toLowerCase().includes('headquarters')) {
+        const dd = dt.nextElementSibling;
+        if (dd && dd.tagName === 'DD' && dd.textContent.trim()) {
+          locationCount++;
+          console.log('[OS-Hub] Found headquarters via text search');
+          break;
+        }
+      }
+    }
+  }
+
+  // Look for additional locations section
+  const locationSectionSelectors = [
+    '[data-test-id="org-locations"]',
+    '.org-locations__card-list',
+    '.org-about-us__locations'
+  ];
+
+  for (const selector of locationSectionSelectors) {
+    const locationSection = document.querySelector(selector);
+    if (locationSection) {
+      // Count individual location cards/items
+      const locationCards = locationSection.querySelectorAll(
+        '.org-locations__card, .location-card, [class*="location"]'
+      );
+
+      if (locationCards.length > 0) {
+        locationCount += locationCards.length;
+        console.log(`[OS-Hub] Found ${locationCards.length} additional locations`);
+      } else if (locationSection.textContent.includes(',')) {
+        // If no cards but text with commas, assume multiple locations
+        const commaCount = (locationSection.textContent.match(/,/g) || []).length;
+        locationCount += Math.min(commaCount, 3); // Cap at reasonable number
+        console.log(`[OS-Hub] Estimated ${Math.min(commaCount, 3)} locations from comma-separated text`);
+      }
+      break;
+    }
+  }
+
+  // Manual search for "Locations" text if nothing found yet
+  if (locationCount <= 1) {
+    const dtElements = document.querySelectorAll('.org-page-details dt');
+    for (const dt of dtElements) {
+      if (dt.textContent.toLowerCase().includes('locations') ||
+          dt.textContent.toLowerCase().includes('offices')) {
+        const dd = dt.nextElementSibling;
+        if (dd && dd.tagName === 'DD' && dd.textContent.trim()) {
+          // Count locations by looking for comma-separated addresses
+          const text = dd.textContent;
+          if (text.includes(',')) {
+            const possibleCount = text.split('\n').filter(line =>
+              line.trim() && (line.includes(',') || /\d+\s+\w+/.test(line))
+            ).length;
+            if (possibleCount > 1) {
+              locationCount = Math.min(possibleCount, 4);
+              console.log(`[OS-Hub] Found ${locationCount} locations via text search`);
+            }
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  // Fallback: Look for any address-like text patterns on About page
+  if (locationCount === 0) {
+    const aboutContent = document.querySelector('.org-about-us, .about-section, [class*="about"]');
+    if (aboutContent) {
+      const text = aboutContent.textContent;
+      // Count address-like patterns (number + street, city state zip)
+      const addressPatterns = [
+        /\d+\s+[A-Za-z\s]+(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd)/gi,
+        /[A-Za-z\s]+,\s*[A-Z]{2}\s*\d{5}/g // City, State ZIP
+      ];
+
+      for (const pattern of addressPatterns) {
+        const matches = text.match(pattern);
+        if (matches) {
+          locationCount = Math.min(matches.length, 4); // Cap at 4 locations
+          console.log(`[OS-Hub] Found ${locationCount} address patterns in about text`);
+          break;
+        }
+      }
+    }
+  }
+
+  // Default to 1 if we're on About page but found nothing specific
+  if (locationCount === 0 && window.location.pathname.includes('/about/')) {
+    locationCount = 1;
+  }
+
+  console.log(`[OS-Hub] Total detected locations: ${locationCount}`);
+  return locationCount;
+}
+
+function extractLinkedInBusinessName() {
+  console.log('[OS-Hub] Extracting LinkedIn business name...');
+
+  const nameSelectors = [
+    // New LinkedIn layout selectors
+    '.org-top-card-summary__title h1',
+    '.org-top-card-summary-info__title h1',
+    '.org-top-card-summary__info h1',
+    // Updated selectors for current LinkedIn structure
+    'h1[data-test-id="org-top-card-summary-info-title"]',
+    '.break-words h1',
+    '.org-top-card-summary h1',
+    '.org-page-header h1',
+    // Fallback selectors
+    '.org-top-card-summary__title',
+    '.org-top-card-summary-info__title',
+    '.break-words',
+    // General fallbacks
+    'h1',
+    '.pv-entity__company-summary-info h3',
+    '.pv-entity__company-summary-info h2'
+  ];
+
+  for (const selector of nameSelectors) {
+    console.log(`[OS-Hub] Trying selector: ${selector}`);
+    const element = document.querySelector(selector);
+
+    if (element && element.textContent && element.textContent.trim()) {
+      let name = element.textContent.trim();
+
+      // Clean up the name
+      name = name.replace(/\s+/g, ' ').trim();
+
+      console.log(`[OS-Hub] Found potential name: "${name}"`);
+
+      // Skip if it looks like a generic LinkedIn element or page text
+      if (name.length > 2 && name.length < 150 &&
+          !name.includes('LinkedIn') &&
+          !name.includes('followers') &&
+          !name.includes('employees') &&
+          !name.includes('About') &&
+          !name.includes('Overview') &&
+          !name.includes('Posts') &&
+          !name.includes('Jobs') &&
+          !name.includes('People') &&
+          !name.includes('Sign in') &&
+          !name.includes('Join now') &&
+          !name.toLowerCase().includes('company page') &&
+          !name.includes('@') &&
+          !name.match(/^\d+$/) && // Not just numbers
+          !name.match(/^[^\w\s]+$/) // Not just special characters
+      ) {
+        console.log(`[OS-Hub] LinkedIn business name found: "${name}"`);
+        return name;
+      } else {
+        console.log(`[OS-Hub] Skipping "${name}" - appears to be UI text`);
+      }
+    }
+  }
+
+  // Fallback: try to extract from page title
+  const pageTitle = document.title;
+  if (pageTitle && pageTitle !== 'LinkedIn' && !pageTitle.includes('Sign in')) {
+    const titleParts = pageTitle.split('|');
+    if (titleParts.length > 0) {
+      let companyName = titleParts[0].trim();
+      companyName = companyName.replace('- LinkedIn', '').trim();
+
+      if (companyName.length > 2 && companyName.length < 100) {
+        console.log(`[OS-Hub] LinkedIn business name from title: "${companyName}"`);
+        return companyName;
+      }
+    }
+  }
+
+  console.log('[OS-Hub] No LinkedIn business name found');
+  return null;
+}
+
+function extractLinkedInLocations() {
+  console.log('[OS-Hub] Extracting LinkedIn locations...');
+
+  const locations = [];
+  const businessName = extractLinkedInBusinessName();
+  let headquartersFound = false;
+
+  // First priority: Target the specific LinkedIn location card structure
+  console.log('[OS-Hub] Searching for LinkedIn location cards...');
+  const locationCards = document.querySelectorAll('.org-location-card');
+
+  for (const card of locationCards) {
+    // Look for the address paragraph within the location card
+    const addressParagraph = card.querySelector('p.t-14.t-black--light.t-normal.break-words, p[dir="ltr"]');
+    if (addressParagraph && addressParagraph.textContent.trim()) {
+      const address = addressParagraph.textContent.trim();
+      console.log(`[OS-Hub] Found location card address: "${address}"`);
+
+      // Check if this is marked as primary
+      const isPrimary = card.querySelector('.label-16dp[aria-label*="primary"]') ||
+                       card.querySelector('span.label-16dp') &&
+                       card.querySelector('span.label-16dp').textContent.toLowerCase().includes('primary');
+
+      locations.push({
+        name: businessName ? `${businessName} - ${isPrimary ? 'Headquarters' : 'Office'}` : (isPrimary ? 'Headquarters' : 'Office'),
+        address: address,
+        country: extractCountryFromAddress(address) || 'US',
+        isHeadquarters: !!isPrimary
+      });
+      headquartersFound = true;
+      console.log(`[OS-Hub] Extracted location from org-location-card: ${address} (Primary: ${!!isPrimary})`);
+    }
+  }
+
+  // If we found locations from location cards, return early to avoid duplicates
+  if (locations.length > 0) {
+    console.log(`[OS-Hub] Found ${locations.length} locations from location cards, skipping fallback methods`);
+    return locations;
+  }
+
+  // Fallback: Extract headquarters with comprehensive selector search
+  const hqSelectors = [
+    // Standard LinkedIn selectors
+    '.org-top-card-summary__headquarter',
+    '.org-about-us__headquarter',
+    '[data-test-id="about-us-headquarters"]',
+    // LinkedIn location and contact sections
+    '.org-locations__card-content',
+    '.org-location-card__content',
+    '.org-top-card-summary__info .org-top-card-summary__info-item',
+    '.org-page-header__subtitle',
+    '.org-top-card-summary__subtitle',
+    // Contact info sections where addresses often appear
+    '.org-top-card-summary__contact-info',
+    '.org-about-module',
+    '.org-about-us__info',
+    '.org-top-card-summary__info',
+    '.org-page-details__contact-info',
+    // Location specific containers
+    '.org-locations',
+    '.org-location',
+    '.location-card',
+    '.contact-info',
+    // More generic selectors for address content
+    '[class*="location"]',
+    '[class*="address"]',
+    '[class*="contact"]',
+    '[class*="headquarter"]',
+    // Broader search for any div that might contain address
+    '.org-top-card-summary div',
+    '.org-about-us div',
+    '.org-page-details div'
+  ];
+
+  console.log('[OS-Hub] Trying standard headquarters selectors...');
+  for (const selector of hqSelectors) {
+    console.log(`[OS-Hub] Testing HQ selector: ${selector}`);
+    const hqElement = document.querySelector(selector);
+    if (hqElement && hqElement.textContent.trim()) {
+      console.log(`[OS-Hub] Found HQ element: "${hqElement.textContent.trim()}"`);
+      const address = cleanLinkedInAddress(hqElement.textContent.trim());
+      if (address) {
+        locations.push({
+          name: businessName ? `${businessName} - Headquarters` : 'Headquarters',
+          address: address,
+          country: extractCountryFromAddress(address) || '',
+          isHeadquarters: true
+        });
+        headquartersFound = true;
+        console.log('[OS-Hub] Extracted headquarters location:', address);
+        break;
+      }
+    }
+  }
+
+  // Enhanced search for headquarters in org details using multiple approaches
+  if (!headquartersFound) {
+    console.log('[OS-Hub] Searching org-page-details for headquarters...');
+
+    // Method 1: Look for dt/dd pairs
+    const dtElements = document.querySelectorAll('.org-page-details dt, dt');
+    for (const dt of dtElements) {
+      const dtText = dt.textContent.toLowerCase();
+      console.log(`[OS-Hub] Checking dt: "${dtText}"`);
+
+      if (dtText.includes('headquarters') || dtText.includes('headquarter') ||
+          dtText.includes('location') || dtText.includes('address') ||
+          dtText.includes('office')) {
+        const dd = dt.nextElementSibling;
+        if (dd && dd.textContent && dd.textContent.trim()) {
+          const addressText = dd.textContent.trim();
+          console.log(`[OS-Hub] Found HQ dd: "${addressText}"`);
+
+          // For simple city/state format or any location text, accept it
+          if (addressText.length > 2) {
+            // Use the raw text if it's a simple city/state format
+            let address = cleanLinkedInAddress(addressText);
+            if (!address && addressText.length < 100) {
+              // If cleanLinkedInAddress doesn't find a pattern but text is reasonable, use it
+              address = addressText;
+            }
+
+            if (address) {
+              locations.push({
+                name: businessName ? `${businessName} - Headquarters` : 'Headquarters',
+                address: address,
+                country: extractCountryFromAddress(address) || 'US', // Default to US for state abbreviations
+                isHeadquarters: true
+              });
+              headquartersFound = true;
+              console.log('[OS-Hub] Extracted headquarters from dt/dd:', address);
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Method 2: Look for full address patterns anywhere on the page
+  if (!headquartersFound) {
+    console.log('[OS-Hub] Searching for full address patterns in page content...');
+
+    // First, try to find full addresses with street numbers and zip codes
+    const pageText = document.body.textContent;
+
+    // More precise pattern that captures clean addresses and stops at boundaries
+    const fullAddressPattern = /(\d+\s+[A-Za-z\s]+(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|Place|Pl|Circle|Cir|Court|Ct)[^,]*,\s*[A-Za-z\s]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?(?:,\s*[A-Z]{2,})?(?=\s|$|[^A-Za-z0-9,\s-]))/gi;
+
+    const fullAddressMatches = [...pageText.matchAll(fullAddressPattern)];
+    if (fullAddressMatches && fullAddressMatches.length > 0) {
+      console.log(`[OS-Hub] Found ${fullAddressMatches.length} full address patterns on page`);
+
+      // Extract clean addresses and deduplicate
+      const allAddresses = fullAddressMatches.map(match => match[1].trim());
+      const uniqueAddresses = [...new Set(allAddresses)]; // Remove duplicates
+
+      const address = uniqueAddresses[0]; // Take the first unique address
+      console.log(`[OS-Hub] Using clean address: ${address}`);
+
+      locations.push({
+        name: businessName ? `${businessName} - Headquarters` : 'Headquarters',
+        address: address,
+        country: extractCountryFromAddress(address) || 'US',
+        isHeadquarters: true
+      });
+      headquartersFound = true;
+    }
+  }
+
+  // Method 3: Look for any text that might contain location information in specific containers
+  if (!headquartersFound) {
+    console.log('[OS-Hub] Searching for location patterns in page containers...');
+
+    // Search all elements that might contain location info
+    const locationSearchSelectors = [
+      '.org-page-details',
+      '.org-about-us',
+      '.org-top-card-summary',
+      '.pv-entity__company-summary-info',
+      '.company-info',
+      '.about-section'
+    ];
+
+    for (const selector of locationSearchSelectors) {
+      const container = document.querySelector(selector);
+      if (container) {
+        console.log(`[OS-Hub] Searching in container: ${selector}`);
+        const text = container.textContent;
+
+        // Look for address patterns in the text
+        const addresses = extractAddressesFromText(text);
+        if (addresses.length > 0) {
+          console.log(`[OS-Hub] Found ${addresses.length} address patterns`);
+          const bestAddress = addresses[0]; // Take the first/best match
+
+          locations.push({
+            name: businessName ? `${businessName} - Headquarters` : 'Headquarters',
+            address: bestAddress,
+            country: extractCountryFromAddress(bestAddress) || '',
+            isHeadquarters: true
+          });
+          headquartersFound = true;
+          console.log('[OS-Hub] Extracted headquarters from text pattern:', bestAddress);
+          break;
+        }
+      }
+    }
+  }
+
+  // Method 3: Look for city/state patterns even without full addresses
+  if (!headquartersFound) {
+    console.log('[OS-Hub] Searching for city/state patterns...');
+
+    const allText = document.body.textContent;
+
+    // Common patterns for city, state combinations
+    const cityStatePatterns = [
+      /([A-Za-z\s]+),\s*([A-Z]{2})\b/g,  // City, ST
+      /([A-Za-z\s]+),\s*([A-Za-z\s]+),\s*([A-Z]{2})\b/g,  // City, County, ST
+      /\b([A-Z][a-z]+)\s*,\s*([A-Z]{2})\b/g  // Simple City, ST
+    ];
+
+    for (const pattern of cityStatePatterns) {
+      const matches = [...allText.matchAll(pattern)];
+      console.log(`[OS-Hub] Found ${matches.length} city/state matches`);
+
+      if (matches.length > 0) {
+        // Filter for reasonable-looking city names (not UI text)
+        const validMatches = matches.filter(match => {
+          const fullMatch = match[0];
+          return !fullMatch.includes('LinkedIn') &&
+                 !fullMatch.includes('Sign') &&
+                 !fullMatch.includes('Join') &&
+                 !fullMatch.includes('Home') &&
+                 fullMatch.length < 50; // Reasonable length
+        });
+
+        if (validMatches.length > 0) {
+          const cityState = validMatches[0][0];
+          console.log(`[OS-Hub] Using city/state: ${cityState}`);
+
+          locations.push({
+            name: businessName ? `${businessName} - Headquarters` : 'Headquarters',
+            address: cityState,
+            country: 'US', // Assume US for state abbreviations
+            isHeadquarters: true
+          });
+          headquartersFound = true;
+          console.log('[OS-Hub] Extracted headquarters from city/state pattern:', cityState);
+          break;
+        }
+      }
+    }
+  }
+
+  // Extract additional locations
+  const locationSectionSelectors = [
+    '[data-test-id="org-locations"]',
+    '.org-locations__card-list',
+    '.org-about-us__locations'
+  ];
+
+  for (const selector of locationSectionSelectors) {
+    const locationSection = document.querySelector(selector);
+    if (locationSection) {
+      const locationCards = locationSection.querySelectorAll(
+        '.org-locations__card, .location-card, [class*="location"]'
+      );
+
+      locationCards.forEach((card, index) => {
+        const address = cleanLinkedInAddress(card.textContent.trim());
+        if (address) {
+          locations.push({
+            name: businessName ? `${businessName} - Location ${index + 1}` : `Location ${index + 1}`,
+            address: address,
+            country: extractCountryFromAddress(address) || '',
+            isHeadquarters: false
+          });
+          console.log(`[OS-Hub] Extracted location ${index + 1}:`, address);
+        }
+      });
+      break;
+    }
+  }
+
+  // Manual search for additional locations in org details
+  if (locations.length <= 1) {
+    const dtElements = document.querySelectorAll('.org-page-details dt');
+    for (const dt of dtElements) {
+      if (dt.textContent.toLowerCase().includes('locations') ||
+          dt.textContent.toLowerCase().includes('offices')) {
+        const dd = dt.nextElementSibling;
+        if (dd && dd.tagName === 'DD' && dd.textContent.trim()) {
+          const text = dd.textContent.trim();
+          const addresses = parseMultipleAddresses(text);
+
+          addresses.forEach((address, index) => {
+            const locationName = businessName ?
+              `${businessName} - Office ${index + 1}` :
+              `Office ${index + 1}`;
+
+            locations.push({
+              name: locationName,
+              address: address,
+              country: extractCountryFromAddress(address) || '',
+              isHeadquarters: false
+            });
+            console.log(`[OS-Hub] Extracted office ${index + 1}:`, address);
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  // If no specific locations found, try to extract any address-like text
+  if (locations.length === 0) {
+    const aboutContent = document.querySelector('.org-about-us, .about-section, [class*="about"]');
+    if (aboutContent) {
+      const addresses = extractAddressesFromText(aboutContent.textContent);
+      addresses.forEach((address, index) => {
+        const locationName = businessName ?
+          `${businessName} - Location ${index + 1}` :
+          `Location ${index + 1}`;
+
+        locations.push({
+          name: locationName,
+          address: address,
+          country: extractCountryFromAddress(address) || '',
+          isHeadquarters: index === 0
+        });
+        console.log(`[OS-Hub] Extracted fallback location ${index + 1}:`, address);
+      });
+    }
+  }
+
+  // Ensure we have at least one location if we're on an about page
+  if (locations.length === 0 && window.location.pathname.includes('/about/') && businessName) {
+    locations.push({
+      name: businessName,
+      address: '', // Will need manual entry
+      country: '',
+      isHeadquarters: true
+    });
+    console.log('[OS-Hub] Added placeholder location for business:', businessName);
+  }
+
+  console.log(`[OS-Hub] Total extracted LinkedIn locations: ${locations.length}`);
+  return locations;
+}
+
+// Debug function to copy LinkedIn page information to clipboard
+function copyLinkedInDebugInfo() {
+  const debugInfo = {
+    url: window.location.href,
+    businessName: extractLinkedInBusinessName(),
+    timestamp: new Date().toISOString(),
+    pageStructure: {
+      locationCards: document.querySelectorAll('.org-location-card').length,
+      orgPageDetails: document.querySelectorAll('.org-page-details').length,
+      orgTopCard: document.querySelectorAll('.org-top-card-summary').length
+    },
+    extractedLocations: extractLinkedInLocations(),
+    htmlSamples: {
+      locationCardHTML: document.querySelector('.org-location-card')?.outerHTML || 'Not found',
+      businessNameHTML: document.querySelector('.org-top-card-summary__title h1')?.outerHTML || 'Not found'
+    }
+  };
+
+  const debugText = `
+=== LinkedIn Debug Information ===
+URL: ${debugInfo.url}
+Business Name: ${debugInfo.businessName}
+Timestamp: ${debugInfo.timestamp}
+
+Page Structure:
+- Location Cards: ${debugInfo.pageStructure.locationCards}
+- Org Page Details: ${debugInfo.pageStructure.orgPageDetails}
+- Org Top Card: ${debugInfo.pageStructure.orgTopCard}
+
+Extracted Locations (${debugInfo.extractedLocations.length}):
+${debugInfo.extractedLocations.map((loc, i) => `${i + 1}. ${loc.name}: ${loc.address} (${loc.country})`).join('\n')}
+
+HTML Samples:
+--- Location Card HTML ---
+${debugInfo.htmlSamples.locationCardHTML}
+
+--- Business Name HTML ---
+${debugInfo.htmlSamples.businessNameHTML}
+
+=== End Debug Information ===
+`;
+
+  // Copy to clipboard
+  navigator.clipboard.writeText(debugText).then(() => {
+    console.log('[OS-Hub] Debug information copied to clipboard');
+    alert('LinkedIn debug information copied to clipboard!');
+  }).catch(err => {
+    console.error('[OS-Hub] Failed to copy debug info:', err);
+    // Fallback: show in console for manual copy
+    console.log('=== DEBUG INFO FOR MANUAL COPY ===');
+    console.log(debugText);
+    alert('Failed to copy automatically. Check console for debug information.');
+  });
+}
+
+// Add global access to debug function
+window.osHubCopyDebugInfo = copyLinkedInDebugInfo;
+
+function cleanLinkedInAddress(text) {
+  if (!text) return '';
+
+  // Remove common LinkedIn artifacts
+  text = text.replace(/\s+/g, ' ').trim();
+
+  // Remove employee count info
+  text = text.replace(/\d+[\s\-]*(?:employees?|workers?)/gi, '');
+
+  // Remove follower info
+  text = text.replace(/\d+[\s\-]*followers?/gi, '');
+
+  // Remove industry info that might be concatenated
+  text = text.replace(/·\s*\w+\s*industry/gi, '');
+
+  // Look for address patterns
+  const addressPatterns = [
+    /\d+[^,]*(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd)[^,]*(?:,\s*[^,]+)*/gi,
+    /[A-Za-z\s]+,\s*[A-Z]{2}\s*\d{5}/g,
+    /[^,]+,\s*[^,]+,\s*[A-Z]{2,}/g, // City, State, Country
+    /[A-Za-z\s]+,\s*[A-Z]{2}\b/g // Simple City, ST format
+  ];
+
+  for (const pattern of addressPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      return match[0].trim();
+    }
+  }
+
+  // If no specific pattern, but contains comma and is reasonable length
+  if (text.includes(',') && text.length > 5 && text.length < 200) {
+    return text;
+  }
+
+  // Accept simple city/state formats even without complex patterns
+  if (/^[A-Za-z\s]+,\s*[A-Z]{2}$/.test(text.trim())) {
+    return text.trim();
+  }
+
+  return '';
+}
+
+function parseMultipleAddresses(text) {
+  const addresses = [];
+
+  // Split by line breaks first
+  const lines = text.split(/\n+/).map(line => line.trim()).filter(line => line.length > 0);
+
+  for (const line of lines) {
+    const cleaned = cleanLinkedInAddress(line);
+    if (cleaned && cleaned.length > 10) {
+      addresses.push(cleaned);
+    }
+  }
+
+  // If no line breaks, try to split by common separators
+  if (addresses.length <= 1) {
+    const separators = [' | ', ' • ', ' / ', '  '];
+    for (const separator of separators) {
+      if (text.includes(separator)) {
+        const parts = text.split(separator);
+        for (const part of parts) {
+          const cleaned = cleanLinkedInAddress(part);
+          if (cleaned && cleaned.length > 10) {
+            addresses.push(cleaned);
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  return addresses.slice(0, 5); // Cap at 5 locations max
+}
+
+function extractAddressesFromText(text) {
+  const addresses = [];
+
+  // Look for address patterns
+  const addressPatterns = [
+    /\d+\s+[A-Za-z\s]+(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd)[^.]*?(?:\d{5}|\w{2,}\s*\d{4,})/gi,
+    /[A-Za-z\s]+,\s*[A-Z]{2}\s*\d{5}/g
+  ];
+
+  for (const pattern of addressPatterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      for (const match of matches) {
+        const cleaned = cleanLinkedInAddress(match);
+        if (cleaned && cleaned.length > 10 && addresses.length < 4) {
+          addresses.push(cleaned);
+        }
+      }
+    }
+  }
+
+  return addresses;
+}
+
+function showLinkedInExtractionPopup() {
+  console.log('[OS-Hub] Showing LinkedIn extraction popup...');
+
+  const locations = extractLinkedInLocations();
+
+  if (locations.length === 0) {
+    showExtractionErrorMessage();
+    return;
+  }
+
+  // Create popup overlay
+  const overlay = document.createElement('div');
+  overlay.id = 'os-hub-linkedin-popup';
+  overlay.className = 'os-hub-popup-overlay';
+
+  // Create popup content
+  const popup = document.createElement('div');
+  popup.className = 'os-hub-popup-content os-hub-linkedin-popup';
+
+  popup.innerHTML = `
+    <div class="os-hub-popup-header">
+      <h3>Extract LinkedIn Business Locations</h3>
+      <button class="os-hub-popup-close">&times;</button>
+    </div>
+    <div class="os-hub-popup-body">
+      <p>Found ${locations.length} location(s) for this business. Would you like to extract and submit them to Open Supply Hub?</p>
+
+      <div class="os-hub-location-preview">
+        ${locations.map((loc, index) => `
+          <div class="os-hub-location-item">
+            <h4>${loc.name}</h4>
+            <p class="os-hub-address">${loc.address || '<em>Address not found - will need manual entry</em>'}</p>
+            ${loc.country ? `<p class="os-hub-country">Country: ${loc.country}</p>` : ''}
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="os-hub-popup-buttons">
+        <button id="os-hub-linkedin-extract-yes" class="os-hub-btn os-hub-btn-primary">Extract All Locations</button>
+        <button id="os-hub-linkedin-extract-no" class="os-hub-btn os-hub-btn-secondary">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
+
+  // Event listeners
+  const closeBtn = popup.querySelector('.os-hub-popup-close');
+  const yesBtn = popup.querySelector('#os-hub-linkedin-extract-yes');
+  const noBtn = popup.querySelector('#os-hub-linkedin-extract-no');
+
+  function closePopup() {
+    overlay.remove();
+  }
+
+  closeBtn.addEventListener('click', closePopup);
+  noBtn.addEventListener('click', closePopup);
+
+  yesBtn.addEventListener('click', function() {
+    // Store all locations and show bulk submission interface
+    storeLinkedInLocations(locations);
+    closePopup();
+    showLinkedInBulkSubmissionPopup(locations);
+  });
+
+  // Close on overlay click
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) {
+      closePopup();
+    }
+  });
+}
+
+function storeLinkedInLocations(locations) {
+  // Convert to our storage format
+  locationDatasets = locations.map(loc => ({
+    name: loc.name,
+    address: loc.address,
+    country: loc.country,
+    productType: '',
+    sector: '',
+    parentCompany: ''
+  }));
+
+  detectedLocationCount = locations.length;
+  currentLocationIndex = 0;
+
+  // Update main facility data for backward compatibility
+  if (locations.length > 0) {
+    facilityData = { ...locationDatasets[0] };
+  }
+
+  // Save to storage
+  chrome.storage.local.set({
+    facilityData: facilityData,
+    locationDatasets: locationDatasets,
+    currentLocationIndex: currentLocationIndex,
+    detectedLocationCount: detectedLocationCount
+  });
+
+  // Update context menus
+  chrome.runtime.sendMessage({
+    action: 'updateLocationCount',
+    count: detectedLocationCount
+  });
+
+  console.log(`[OS-Hub] Stored ${detectedLocationCount} LinkedIn locations`);
+}
+
+function showLinkedInBulkSubmissionPopup(locations) {
+  // Create popup overlay
+  const overlay = document.createElement('div');
+  overlay.id = 'os-hub-linkedin-bulk-popup';
+  overlay.className = 'os-hub-popup-overlay';
+
+  // Create popup content
+  const content = document.createElement('div');
+  content.className = 'os-hub-popup-content os-hub-bulk-popup';
+
+  content.innerHTML = `
+    <div class="os-hub-popup-header">
+      <h3>Submit ${locations.length} Locations to Open Supply Hub</h3>
+      <button class="os-hub-popup-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="os-hub-popup-body">
+      <div class="os-hub-form-section">
+        <div class="os-hub-environment-section">
+          <label for="os-hub-bulk-environment">Environment:</label>
+          <select id="os-hub-bulk-environment">
+            <option value="staging">Staging (staging.opensupplyhub.org)</option>
+            <option value="production">Production (opensupplyhub.org)</option>
+          </select>
+          <div id="os-hub-bulk-environment-banner" class="os-hub-environment-banner">Data will be submitted to STAGING</div>
+        </div>
+
+        <div class="os-hub-api-section">
+          <label for="os-hub-bulk-api-key">API Key:</label>
+          <input type="password" id="os-hub-bulk-api-key" placeholder="Enter your API key">
+          <div id="os-hub-bulk-api-status" class="os-hub-status"></div>
+        </div>
+
+        <div class="os-hub-bulk-locations">
+          ${locations.map((loc, index) => `
+            <div class="os-hub-location-form" data-index="${index}">
+              <h4>Location ${index + 1}</h4>
+              <div class="os-hub-form-group">
+                <label>Name:</label>
+                <input type="text" class="os-hub-location-name" value="${loc.name}" required>
+              </div>
+              <div class="os-hub-form-group">
+                <label>Address:</label>
+                <textarea class="os-hub-location-address" required>${loc.address}</textarea>
+              </div>
+              <div class="os-hub-form-group">
+                <label>Country:</label>
+                <input type="text" class="os-hub-location-country" value="${loc.country}" list="os-hub-bulk-country-list" placeholder="2-letter code or country name" required>
+              </div>
+              <div class="os-hub-form-group">
+                <label>Sector (optional):</label>
+                <select class="os-hub-location-sector">
+                  <option value="">Select a sector (optional)</option>
+                </select>
+              </div>
+            </div>
+          `).join('')}
+          <datalist id="os-hub-bulk-country-list"></datalist>
+        </div>
+      </div>
+
+      <div class="os-hub-popup-buttons">
+        <button type="button" class="os-hub-btn os-hub-btn-secondary" id="os-hub-bulk-cancel-btn">Cancel</button>
+        <button type="button" class="os-hub-btn os-hub-btn-primary" id="os-hub-bulk-submit-btn">Submit All Locations</button>
+      </div>
+      <div id="os-hub-bulk-submit-status" class="os-hub-status"></div>
+      <div id="os-hub-bulk-progress" class="os-hub-progress" style="display: none;">
+        <div class="os-hub-progress-bar">
+          <div class="os-hub-progress-fill" style="width: 0%"></div>
+        </div>
+        <div class="os-hub-progress-text">Submitting location 0 of ${locations.length}...</div>
+      </div>
+    </div>
+  `;
+
+  overlay.appendChild(content);
+  document.body.appendChild(overlay);
+
+  // Initialize the bulk submission popup
+  initializeLinkedInBulkSubmissionPopup(locations);
+
+  // Close handlers
+  const closeBtn = content.querySelector('.os-hub-popup-close');
+  const cancelBtn = content.querySelector('#os-hub-bulk-cancel-btn');
+
+  function closePopup() {
+    document.body.removeChild(overlay);
+  }
+
+  closeBtn.addEventListener('click', closePopup);
+  cancelBtn.addEventListener('click', closePopup);
+
+  // Close on overlay click
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) {
+      closePopup();
+    }
+  });
+}
+
+function initializeLocationDatasets() {
+  const locationCount = detectLinkedInLocations();
+  detectedLocationCount = locationCount;
+  
+  if (locationCount <= 1) {
+    // Single location - use existing behavior
+    locationDatasets = [];
+    return locationCount;
+  }
+  
+  // Multiple locations - initialize datasets
+  locationDatasets = [];
+  for (let i = 0; i < locationCount; i++) {
+    locationDatasets.push({
+      name: '',
+      address: '',
+      country: '',
+      productType: '',
+      sector: '',
+      parentCompany: ''
+    });
+  }
+  
+  // Notify background script to update context menus
+  chrome.runtime.sendMessage({
+    action: 'updateLocationCount',
+    count: locationCount
+  });
+  
+  // Save to storage
+  chrome.storage.local.set({
+    locationDatasets: locationDatasets,
+    detectedLocationCount: locationCount,
+    currentLocationIndex: 0
+  });
+  
+  console.log(`[OS-Hub] Initialized ${locationCount} location datasets`);
+  return locationCount;
+}
+
+function initializeLinkedInBulkSubmissionPopup(locations) {
+  const environmentSelect = document.getElementById('os-hub-bulk-environment');
+  const environmentBanner = document.getElementById('os-hub-bulk-environment-banner');
+  const apiKeyInput = document.getElementById('os-hub-bulk-api-key');
+  const apiStatus = document.getElementById('os-hub-bulk-api-status');
+  const submitBtn = document.getElementById('os-hub-bulk-submit-btn');
+  const submitStatus = document.getElementById('os-hub-bulk-submit-status');
+  const progressDiv = document.getElementById('os-hub-bulk-progress');
+  const progressFill = progressDiv.querySelector('.os-hub-progress-fill');
+  const progressText = progressDiv.querySelector('.os-hub-progress-text');
+  const countryList = document.getElementById('os-hub-bulk-country-list');
+
+  let currentEnvironment = 'staging';
+  let apiBaseUrl = osHubEnvironments.staging.baseUrl;
+
+  // Load saved environment setting
+  chrome.storage.sync.get(['environment'], function(result) {
+    if (result.environment) {
+      currentEnvironment = result.environment;
+      environmentSelect.value = currentEnvironment;
+      apiBaseUrl = osHubEnvironments[currentEnvironment].baseUrl;
+      updateEnvironmentBanner();
+      loadApiKey();
+    } else {
+      loadApiKey();
+    }
+  });
+
+  function updateEnvironmentBanner() {
+    environmentBanner.textContent = `Data will be submitted to ${osHubEnvironments[currentEnvironment].name}`;
+    if (currentEnvironment === 'production') {
+      environmentBanner.classList.add('os-hub-production');
+    } else {
+      environmentBanner.classList.remove('os-hub-production');
+    }
+  }
+
+  function loadApiKey() {
+    const keyName = `apiKey_${currentEnvironment}`;
+    chrome.storage.sync.get([keyName], function(result) {
+      if (result[keyName]) {
+        apiKeyInput.value = result[keyName];
+        apiStatus.textContent = 'API key loaded';
+        apiStatus.className = 'os-hub-status os-hub-success';
+      } else {
+        apiKeyInput.value = '';
+        apiStatus.textContent = 'No API key saved for this environment';
+        apiStatus.className = 'os-hub-status os-hub-error';
+      }
+    });
+  }
+
+  // Environment change handler
+  environmentSelect.addEventListener('change', function() {
+    currentEnvironment = this.value;
+    apiBaseUrl = osHubEnvironments[currentEnvironment].baseUrl;
+    chrome.storage.sync.set({ environment: currentEnvironment });
+    updateEnvironmentBanner();
+    loadApiKey();
+  });
+
+  // Populate country datalist
+  osHubCountries.forEach(country => {
+    const option = document.createElement('option');
+    option.value = country.alpha_2;
+    option.text = `${country.name} (${country.alpha_2})`;
+    countryList.appendChild(option);
+  });
+
+  // Populate sector dropdowns
+  const sectorSelects = document.querySelectorAll('.os-hub-location-sector');
+  sectorSelects.forEach(select => {
+    osHubSectors.forEach(sector => {
+      const option = document.createElement('option');
+      option.value = sector.name;
+      option.textContent = sector.name;
+      select.appendChild(option);
+    });
+  });
+
+  // Bulk submission handler
+  submitBtn.addEventListener('click', async function() {
+    const keyName = `apiKey_${currentEnvironment}`;
+    chrome.storage.sync.get([keyName], async function(result) {
+      const apiKey = apiKeyInput.value.trim() || result[keyName];
+
+      if (!apiKey) {
+        submitStatus.textContent = `Please enter your API key for ${osHubEnvironments[currentEnvironment].name}`;
+        submitStatus.className = 'os-hub-status os-hub-error';
+        return;
+      }
+
+      // Save API key
+      const storageData = {};
+      storageData[keyName] = apiKey;
+      chrome.storage.sync.set(storageData);
+
+      // Collect all location data
+      const locationForms = document.querySelectorAll('.os-hub-location-form');
+      const submissionData = [];
+
+      for (const form of locationForms) {
+        const name = form.querySelector('.os-hub-location-name').value.trim();
+        const address = form.querySelector('.os-hub-location-address').value.trim();
+        const country = form.querySelector('.os-hub-location-country').value.trim().toUpperCase();
+        const sector = form.querySelector('.os-hub-location-sector').value.trim();
+
+        if (!name || !address || !country) {
+          submitStatus.textContent = 'All locations must have name, address, and country';
+          submitStatus.className = 'os-hub-status os-hub-error';
+          return;
+        }
+
+        const payload = {
+          name: name,
+          address: address,
+          country: country,
+          source_name: "OS Hub Chrome Extension - LinkedIn",
+          source_link: window.location.href
+        };
+
+        if (sector) payload.sectors = [sector];
+
+        submissionData.push(payload);
+      }
+
+      // Start bulk submission
+      submitBtn.disabled = true;
+      progressDiv.style.display = 'block';
+      submitStatus.textContent = 'Starting bulk submission...';
+      submitStatus.className = 'os-hub-status';
+
+      const results = [];
+      const errors = [];
+
+      for (let i = 0; i < submissionData.length; i++) {
+        const payload = submissionData[i];
+        progressText.textContent = `Submitting location ${i + 1} of ${submissionData.length}...`;
+        progressFill.style.width = `${((i) / submissionData.length) * 100}%`;
+
+        try {
+          const data = await makeApiRequest(apiBaseUrl + osHubApiEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Token ' + apiKey
+            },
+            body: JSON.stringify(payload)
+          });
+
+          results.push({
+            name: payload.name,
+            success: true,
+            data: data
+          });
+
+          // Small delay between submissions to be nice to the API
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+        } catch (error) {
+          console.error(`Error submitting location ${i + 1}:`, error);
+          errors.push({
+            name: payload.name,
+            error: error.message
+          });
+        }
+      }
+
+      // Completion
+      progressFill.style.width = '100%';
+      progressText.textContent = `Completed: ${results.length} successful, ${errors.length} errors`;
+
+      if (errors.length === 0) {
+        submitStatus.textContent = `✓ All ${results.length} locations submitted successfully!`;
+        submitStatus.className = 'os-hub-status os-hub-success';
+
+        // Clear stored location data
+        chrome.storage.local.remove(['facilityData', 'locationDatasets']);
+
+        // Auto-close after success
+        setTimeout(() => {
+          const popup = document.getElementById('os-hub-linkedin-bulk-popup');
+          if (popup) {
+            document.body.removeChild(popup);
+          }
+        }, 3000);
+
+      } else {
+        submitStatus.textContent = `⚠ ${results.length} successful, ${errors.length} failed. Check console for details.`;
+        submitStatus.className = 'os-hub-status os-hub-warning';
+        console.error('Submission errors:', errors);
+      }
+
+      submitBtn.disabled = false;
+    });
+  });
+}
+
+// Global variable to track current URL for navigation detection
+let lastLinkedInUrl = window.location.href;
+let linkedInPopupShown = false;
+
+function initializeLinkedInDetection() {
+  if (!window.location.hostname.includes('linkedin.com')) {
+    return;
+  }
+
+  console.log('[OS-Hub] Initializing LinkedIn location detection with navigation monitoring');
+
+  // Set up URL change detection for single-page app navigation
+  setupLinkedInNavigationDetection();
+
+  // Check current page
+  checkLinkedInPage();
+}
+
+function setupLinkedInNavigationDetection() {
+  console.log('[OS-Hub] Setting up LinkedIn navigation detection...');
+
+  // Method 1: Monitor URL changes using history API
+  const originalPushState = history.pushState;
+  const originalReplaceState = history.replaceState;
+
+  history.pushState = function() {
+    originalPushState.apply(history, arguments);
+    handleLinkedInNavigation();
+  };
+
+  history.replaceState = function() {
+    originalReplaceState.apply(history, arguments);
+    handleLinkedInNavigation();
+  };
+
+  // Method 2: Listen for popstate events (back/forward navigation)
+  window.addEventListener('popstate', handleLinkedInNavigation);
+
+  // Method 3: Monitor DOM changes for LinkedIn's dynamic content loading
+  const observer = new MutationObserver((mutations) => {
+    let significantChange = false;
+
+    mutations.forEach(mutation => {
+      // Check if main content areas have changed
+      if (mutation.target.classList && (
+          mutation.target.classList.contains('main') ||
+          mutation.target.classList.contains('org-page') ||
+          mutation.target.classList.contains('org-about-us') ||
+          mutation.target.classList.contains('org-location-card')
+        )) {
+        significantChange = true;
+      }
+    });
+
+    if (significantChange) {
+      console.log('[OS-Hub] LinkedIn content change detected');
+      setTimeout(checkLinkedInPage, 1000); // Small delay for content to settle
+    }
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class']
+  });
+
+  console.log('[OS-Hub] Navigation detection setup complete');
+}
+
+function handleLinkedInNavigation() {
+  console.log('[OS-Hub] LinkedIn navigation detected');
+
+  // Small delay to let the page content update
+  setTimeout(() => {
+    const currentUrl = window.location.href;
+    if (currentUrl !== lastLinkedInUrl) {
+      console.log(`[OS-Hub] URL changed from ${lastLinkedInUrl} to ${currentUrl}`);
+      lastLinkedInUrl = currentUrl;
+
+      // Reset popup state for new page
+      linkedInPopupShown = false;
+
+      // Check the new page
+      checkLinkedInPage();
+    }
+  }, 500);
+}
+
+function checkLinkedInPage() {
+  if (!window.location.hostname.includes('linkedin.com')) {
+    return;
+  }
+
+  console.log('[OS-Hub] Checking LinkedIn page:', window.location.pathname);
+
+  // Show LinkedIn extraction popup if on About page
+  if (window.location.pathname.includes('/about/')) {
+    console.log('[OS-Hub] LinkedIn About page detected, checking for extraction opportunity...');
+
+    // Try multiple times as LinkedIn loads content dynamically
+    const attempts = [1000, 3000, 6000, 10000];
+
+    attempts.forEach((delay, index) => {
+      setTimeout(() => {
+        console.log(`[OS-Hub] LinkedIn extraction attempt ${index + 1} for ${window.location.pathname}`);
+        const locations = extractLinkedInLocations();
+
+        console.log(`[OS-Hub] Attempt ${index + 1}: Found ${locations.length} locations`);
+
+        // Show popup on ANY successful detection (not just first attempt)
+        if (locations.length > 0 && !linkedInPopupShown) {
+          console.log('[OS-Hub] Showing LinkedIn extraction popup');
+          showLinkedInExtractionPopup();
+          linkedInPopupShown = true;
+        }
+
+        // Always update location count for context menus
+        initializeLocationDatasets();
+      }, delay);
+    });
+
+    // Also detect when user scrolls or interacts with page (content might load)
+    let hasScrollDetected = false;
+    const scrollHandler = () => {
+      if (!hasScrollDetected) {
+        hasScrollDetected = true;
+        setTimeout(() => {
+          console.log('[OS-Hub] LinkedIn location detection on scroll');
+          const locations = extractLinkedInLocations();
+          if (locations.length > 0 && !linkedInPopupShown) {
+            console.log('[OS-Hub] Showing LinkedIn extraction popup (scroll trigger)');
+            showLinkedInExtractionPopup();
+            linkedInPopupShown = true;
+          }
+          initializeLocationDatasets();
+        }, 1000);
+      }
+    };
+
+    window.addEventListener('scroll', scrollHandler, { once: true });
+
+    // Also try on click events (user interaction might trigger content load)
+    const clickHandler = () => {
+      setTimeout(() => {
+        console.log('[OS-Hub] LinkedIn location detection on click');
+        const locations = extractLinkedInLocations();
+        if (locations.length > 0 && !linkedInPopupShown) {
+          console.log('[OS-Hub] Showing LinkedIn extraction popup (click trigger)');
+          showLinkedInExtractionPopup();
+          linkedInPopupShown = true;
+        }
+        initializeLocationDatasets();
+      }, 500);
+    };
+
+    document.addEventListener('click', clickHandler, { once: true });
+
+  } else {
+    // Not on About page, just do basic detection for context menus
+    setTimeout(() => {
+      initializeLocationDatasets();
+    }, 2000);
+  }
+}
+
+// Test function to simulate Point Reyes scenario (for debugging)
+window.osHubTestMultipleLocations = function() {
+  console.log('[OS-Hub] Setting up test data for Point Reyes Farmstead Cheese');
+
+  // Simulate 2 locations detected
+  detectedLocationCount = 2;
+
+  // Create test location datasets
+  locationDatasets = [
+    {
+      name: 'Point Reyes Farmstead Cheese Company - Main Facility',
+      address: '14700 Red Hill Road, Point Reyes Station, CA 94956',
+      country: 'US',
+      productType: 'Food & Beverages',
+      sector: 'Food & Beverage',
+      parentCompany: 'Point Reyes Farmstead Cheese Company'
+    },
+    {
+      name: 'Point Reyes Farmstead Cheese Company - Retail Store',
+      address: '80 4th Street, Point Reyes Station, CA 94956',
+      country: 'US',
+      productType: 'Food & Beverages',
+      sector: 'Food & Beverage',
+      parentCompany: 'Point Reyes Farmstead Cheese Company'
+    }
+  ];
+
+  currentLocationIndex = 0;
+
+  // Update storage
+  chrome.storage.local.set({
+    locationDatasets: locationDatasets,
+    facilityData: locationDatasets[0], // Backward compatibility
+    detectedLocationCount: detectedLocationCount,
+    currentLocationIndex: currentLocationIndex
+  });
+
+  // Update context menus
+  chrome.runtime.sendMessage({
+    action: 'updateLocationCount',
+    count: detectedLocationCount
+  });
+
+  console.log(`[OS-Hub] Test setup complete: ${detectedLocationCount} locations, context menus updated`);
+  console.log('[OS-Hub] Test locations:', locationDatasets);
+
+  return detectedLocationCount;
+};
+
+// Manual trigger function for testing LinkedIn pages
+window.osHubManualLinkedInTest = function() {
+  console.log('[OS-Hub] Manual LinkedIn extraction test triggered');
+  console.log('[OS-Hub] Current URL:', window.location.href);
+  console.log('[OS-Hub] Current pathname:', window.location.pathname);
+
+  // Force LinkedIn detection
+  if (!window.location.hostname.includes('linkedin.com')) {
+    console.log('[OS-Hub] ⚠️ Not on LinkedIn - this test may not work correctly');
+  }
+
+  // Try business name extraction
+  console.log('[OS-Hub] Testing business name extraction...');
+  const businessName = extractLinkedInBusinessName();
+  console.log('[OS-Hub] Business name result:', businessName);
+
+  // Try location extraction
+  console.log('[OS-Hub] Testing location extraction...');
+  const locations = extractLinkedInLocations();
+  console.log('[OS-Hub] Extracted locations:', locations);
+
+  // Show popup if locations found
+  if (locations.length > 0) {
+    console.log('[OS-Hub] Showing extraction popup...');
+    showLinkedInExtractionPopup();
+    return {
+      success: true,
+      businessName: businessName,
+      locations: locations,
+      message: 'LinkedIn extraction successful!'
+    };
+  } else {
+    console.log('[OS-Hub] No locations found - popup not shown');
+    return {
+      success: false,
+      businessName: businessName,
+      locations: locations,
+      message: 'No locations detected. Try scrolling down or waiting for page to fully load.'
+    };
+  }
+};
+
+// Single location test function for companies with minimal location data
+window.osHubTestSingleLocation = function() {
+  console.log('[OS-Hub] Testing single location detection');
+
+  const businessName = extractLinkedInBusinessName();
+  console.log('[OS-Hub] Business name:', businessName);
+
+  if (businessName) {
+    // Create a single location with just the business name
+    const singleLocation = {
+      name: businessName,
+      address: '', // Will be filled manually
+      country: '',
+      isHeadquarters: true
+    };
+
+    console.log('[OS-Hub] Created single location:', singleLocation);
+
+    // Store and show popup
+    storeLinkedInLocations([singleLocation]);
+    showLinkedInExtractionPopup();
+
+    return {
+      success: true,
+      location: singleLocation,
+      message: 'Single location created successfully!'
+    };
+  } else {
+    return {
+      success: false,
+      message: 'Could not extract business name from page'
+    };
+  }
+};
+
+// Start Facebook and LinkedIn detection
 console.log('[OS-Hub] Content script loaded');
 initializeFacebookDetection();
+initializeLinkedInDetection();

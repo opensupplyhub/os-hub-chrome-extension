@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn HTML Structure Test - Example Manufacturing Corp</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .org-location-card {
+            border: 2px solid #0077b5;
+            padding: 20px;
+            margin: 20px 0;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        .label-16dp {
+            background: #0077b5;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        .t-14 {
+            font-size: 14px;
+        }
+        .t-black--light {
+            color: #666;
+        }
+        .t-normal {
+            font-weight: normal;
+        }
+        .break-words {
+            word-wrap: break-word;
+        }
+        .mt2 {
+            margin-top: 8px;
+        }
+        .t-bold {
+            font-weight: bold;
+        }
+        .test-controls {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .test-controls button {
+            background: #0077b5;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .test-controls button:hover {
+            background: #005885;
+        }
+        #log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 6px;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            display: none;
+        }
+        .org-top-card-summary__title h1 {
+            color: #0077b5;
+            margin: 0 0 20px 0;
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🏭 LinkedIn HTML Structure Test - Example Manufacturing Corp</h1>
+
+        <div class="org-top-card-summary__title">
+            <h1>Example Manufacturing Corp</h1>
+        </div>
+
+        <!-- Exact LinkedIn HTML structure from typical About pages -->
+        <div class="org-location-card pv2">
+            <span class="label-16dp" aria-label="This location is the primary office.">
+                Primary
+            </span>
+            <p class="t-14 t-black--light t-normal break-words" dir="ltr">
+                123 Industrial Way, Example City, CA 90210, US
+            </p>
+            <a tabindex="0" rel="noopener noreferrer" target="_blank" href="https://www.bing.com/maps?where=123%20Industrial%20Way%2C%20Example%20City%2C%20CA%2090210%2C%20US" class="mt2 t-14 t-black t-bold">
+                <span class="link-without-visited-state" aria-hidden="true">
+                    Get directions
+                </span>
+                <span class="visually-hidden">
+                    Get directions to 123 Industrial Way, Example City, CA 90210, US
+                </span>
+            </a>
+        </div>
+
+        <div class="test-controls">
+            <h3>🧪 Test Controls</h3>
+            <button onclick="testLocationCardExtraction()">🔍 Test Location Card Extraction</button>
+            <button onclick="testBusinessNameExtraction()">📛 Test Business Name Extraction</button>
+            <button onclick="runFullTest()">🚀 Run Full LinkedIn Test</button>
+            <button onclick="copyDebugInfo()" style="background: #28a745;">📋 Copy Debug Info to Clipboard</button>
+            <button onclick="clearLog()">🗑️ Clear Log</button>
+        </div>
+
+        <div id="log"></div>
+
+        <div class="success" id="successMessage">
+            <strong>✅ Success!</strong><br>
+            <span id="successDetails">Test completed successfully!</span>
+        </div>
+    </div>
+
+    <!-- Load our extension scripts -->
+    <link rel="stylesheet" href="content.css">
+    <script>
+        // Mock Chrome APIs
+        window.chrome = {
+            runtime: {
+                sendMessage: function(message, callback) {
+                    log(`📤 Chrome API call: ${JSON.stringify(message)}`);
+                    if (callback) {
+                        setTimeout(() => callback({success: true}), 100);
+                    }
+                },
+                onMessage: {
+                    addListener: function(listener) {
+                        log('🔗 Message listener registered');
+                    }
+                }
+            },
+            storage: {
+                local: {
+                    set: function(data, callback) {
+                        log(`💾 Local storage set: ${JSON.stringify(Object.keys(data))}`);
+                        if (callback) callback();
+                    },
+                    get: function(keys, callback) {
+                        log(`📖 Local storage get: ${JSON.stringify(keys)}`);
+                        if (callback) callback({});
+                    },
+                    remove: function(keys, callback) {
+                        log(`🗑️ Local storage remove: ${JSON.stringify(keys)}`);
+                        if (callback) callback();
+                    }
+                },
+                sync: {
+                    set: function(data, callback) {
+                        log(`☁️ Sync storage set: ${JSON.stringify(Object.keys(data))}`);
+                        if (callback) callback();
+                    },
+                    get: function(keys, callback) {
+                        log(`☁️ Sync storage get: ${JSON.stringify(keys)}`);
+                        const result = {};
+                        if (keys.includes && keys.includes('apiKey_staging')) {
+                            result.apiKey_staging = 'YOUR_STAGING_API_KEY_HERE';
+                        } else if (keys === 'apiKey_staging') {
+                            result.apiKey_staging = 'YOUR_STAGING_API_KEY_HERE';
+                        }
+                        if (callback) callback(result);
+                    }
+                }
+            }
+        };
+
+        // Mock LinkedIn environment
+        Object.defineProperty(window.location, 'hostname', {
+            writable: false,
+            value: 'www.linkedin.com'
+        });
+        Object.defineProperty(window.location, 'pathname', {
+            writable: false,
+            value: '/company/example-manufacturing-corp/about/'
+        });
+        Object.defineProperty(window.location, 'href', {
+            writable: false,
+            value: 'https://www.linkedin.com/company/example-manufacturing-corp/about/'
+        });
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            document.getElementById('successMessage').style.display = 'none';
+        }
+
+        function testLocationCardExtraction() {
+            log('🔍 Testing location card extraction...');
+
+            try {
+                // Test the specific location card extraction logic
+                const locationCards = document.querySelectorAll('.org-location-card');
+                log(`📊 Found ${locationCards.length} location cards`);
+
+                for (const card of locationCards) {
+                    const addressParagraph = card.querySelector('p.t-14.t-black--light.t-normal.break-words, p[dir="ltr"]');
+                    if (addressParagraph && addressParagraph.textContent.trim()) {
+                        const address = addressParagraph.textContent.trim();
+                        log(`📍 Found address paragraph: "${address}"`);
+
+                        // Check if this is marked as primary
+                        const isPrimary = card.querySelector('.label-16dp[aria-label*="primary"]') ||
+                                         (card.querySelector('span.label-16dp') &&
+                                          card.querySelector('span.label-16dp').textContent.toLowerCase().includes('primary'));
+
+                        log(`🏢 Is primary location: ${!!isPrimary}`);
+
+                        const location = {
+                            name: `Example Manufacturing Corp - ${isPrimary ? 'Headquarters' : 'Office'}`,
+                            address: address,
+                            country: 'US',
+                            isHeadquarters: !!isPrimary
+                        };
+
+                        log(`✅ Extracted location: ${JSON.stringify(location, null, 2)}`);
+                        showSuccess(`Successfully extracted: ${address}`);
+                    }
+                }
+
+            } catch (error) {
+                log(`💥 Location card extraction error: ${error.message}`);
+            }
+        }
+
+        function testBusinessNameExtraction() {
+            log('📛 Testing business name extraction...');
+
+            try {
+                const businessName = extractLinkedInBusinessName();
+                log(`🎯 Business name: "${businessName}"`);
+
+                if (businessName) {
+                    showSuccess(`Business name extracted: ${businessName}`);
+                }
+            } catch (error) {
+                log(`💥 Business name extraction error: ${error.message}`);
+            }
+        }
+
+        function runFullTest() {
+            log('🚀 Running full LinkedIn extraction test...');
+
+            try {
+                const locations = extractLinkedInLocations();
+                log(`📊 Total locations extracted: ${locations.length}`);
+
+                locations.forEach((loc, i) => {
+                    log(`  ${i + 1}. ${loc.name}`);
+                    log(`     Address: ${loc.address}`);
+                    log(`     Country: ${loc.country}`);
+                    log(`     HQ: ${loc.isHeadquarters}`);
+                });
+
+                if (locations.length > 0) {
+                    showSuccess(`Extracted ${locations.length} locations successfully!`);
+                } else {
+                    log('⚠️ No locations extracted');
+                }
+
+            } catch (error) {
+                log(`💥 Full test error: ${error.message}`);
+            }
+        }
+
+        function copyDebugInfo() {
+            log('📋 Copying debug information to clipboard...');
+
+            try {
+                if (window.osHubCopyDebugInfo) {
+                    window.osHubCopyDebugInfo();
+                } else {
+                    log('⚠️ Debug function not available yet, trying manual copy...');
+
+                    // Manual debug info collection
+                    const debugData = {
+                        url: window.location.href,
+                        locationCards: document.querySelectorAll('.org-location-card').length,
+                        businessName: document.querySelector('.org-top-card-summary__title h1')?.textContent || 'Not found',
+                        addresses: Array.from(document.querySelectorAll('.org-location-card p')).map(p => p.textContent.trim())
+                    };
+
+                    const debugText = `Debug Info: ${JSON.stringify(debugData, null, 2)}`;
+                    navigator.clipboard.writeText(debugText);
+                    log('✅ Manual debug info copied to clipboard');
+                    showSuccess('Debug information copied to clipboard!');
+                }
+            } catch (error) {
+                log(`💥 Copy debug info error: ${error.message}`);
+            }
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            const detailsSpan = document.getElementById('successDetails');
+            detailsSpan.textContent = message;
+            successDiv.style.display = 'block';
+        }
+
+        // Load content script
+        log('🔄 Loading extension content script...');
+    </script>
+    <script src="content.js"></script>
+    <script>
+        // Initialize
+        window.addEventListener('load', () => {
+            log('🎉 LinkedIn HTML structure test page loaded!');
+            log('📝 This page contains the exact HTML structure from a typical company About page');
+            log('🔍 Use the test buttons to validate the enhanced extraction logic');
+            log('📍 Expected result: "123 Industrial Way, Example City, CA 90210, US"');
+        });
+    </script>
+</body>
+</html>

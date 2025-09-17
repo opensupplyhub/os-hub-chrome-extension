@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn Extraction Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .test-case {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 3px;
+        }
+        .success { background: #d4edda; }
+        .error { background: #f8d7da; }
+        .result {
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        button {
+            background: #0077b5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #005885;
+        }
+        #mockLinkedInPage {
+            border: 2px solid #0077b5;
+            padding: 20px;
+            margin: 20px 0;
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <h1>LinkedIn Location Extraction Test</h1>
+    <p>This page tests the LinkedIn business location extraction functionality.</p>
+
+    <!-- Mock LinkedIn Page Structure -->
+    <div id="mockLinkedInPage">
+        <h2>Mock LinkedIn About Page</h2>
+        <div class="org-top-card-summary__title">
+            <h1>Test Manufacturing Company</h1>
+        </div>
+        <div class="org-top-card-summary__headquarter">
+            123 Industrial Boulevard, Manufacturing City, MC 12345, United States
+        </div>
+        <div class="org-page-details">
+            <dt>Locations</dt>
+            <dd>456 Factory Street, Production Town, PT 67890, United States
+                789 Assembly Avenue, Workshop Village, WV 54321, United States</dd>
+        </div>
+        <div class="org-page-details">
+            <dt>Industry</dt>
+            <dd>Manufacturing</dd>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>Manual Tests</h3>
+        <button onclick="testBusinessNameExtraction()">Test Business Name Extraction</button>
+        <button onclick="testLocationExtraction()">Test Location Extraction</button>
+        <button onclick="testAddressCleaning()">Test Address Cleaning</button>
+        <button onclick="testCountryExtraction()">Test Country Extraction</button>
+        <button onclick="testLinkedInDetection()">Test LinkedIn Detection</button>
+        <button onclick="testExtractionPopup()">Test Extraction Popup</button>
+        <button onclick="runAllTests()">Run All Tests</button>
+    </div>
+
+    <div id="testResults"></div>
+
+    <!-- Load our content scripts -->
+    <link rel="stylesheet" href="content.css">
+    <script>
+        // Mock Chrome API for testing
+        window.chrome = {
+            runtime: {
+                sendMessage: function(message, callback) {
+                    console.log('Mock chrome.runtime.sendMessage:', message);
+                    if (callback) {
+                        setTimeout(() => callback({success: true}), 100);
+                    }
+                },
+                onMessage: {
+                    addListener: function(listener) {
+                        console.log('Mock chrome.runtime.onMessage.addListener');
+                    }
+                }
+            },
+            storage: {
+                local: {
+                    set: function(data, callback) {
+                        console.log('Mock chrome.storage.local.set:', data);
+                        if (callback) callback();
+                    },
+                    get: function(keys, callback) {
+                        console.log('Mock chrome.storage.local.get:', keys);
+                        if (callback) callback({});
+                    },
+                    remove: function(keys, callback) {
+                        console.log('Mock chrome.storage.local.remove:', keys);
+                        if (callback) callback();
+                    }
+                },
+                sync: {
+                    set: function(data, callback) {
+                        console.log('Mock chrome.storage.sync.set:', data);
+                        if (callback) callback();
+                    },
+                    get: function(keys, callback) {
+                        console.log('Mock chrome.storage.sync.get:', keys);
+                        if (callback) callback({});
+                    }
+                }
+            }
+        };
+
+        // Mock window.location for LinkedIn
+        Object.defineProperty(window.location, 'hostname', {
+            writable: false,
+            value: 'www.linkedin.com'
+        });
+        Object.defineProperty(window.location, 'pathname', {
+            writable: false,
+            value: '/company/test-manufacturing/about/'
+        });
+    </script>
+    <script src="content.js"></script>
+
+    <script>
+        function addTestResult(testName, success, result) {
+            const resultsDiv = document.getElementById('testResults');
+            const testDiv = document.createElement('div');
+            testDiv.className = `test-case ${success ? 'success' : 'error'}`;
+            testDiv.innerHTML = `
+                <strong>${testName}</strong>: ${success ? 'PASS' : 'FAIL'}
+                <div class="result">${result}</div>
+            `;
+            resultsDiv.appendChild(testDiv);
+        }
+
+        function testBusinessNameExtraction() {
+            try {
+                const businessName = extractLinkedInBusinessName();
+                const success = businessName === 'Test Manufacturing Company';
+                addTestResult(
+                    'Business Name Extraction',
+                    success,
+                    `Expected: "Test Manufacturing Company", Got: "${businessName}"`
+                );
+            } catch (error) {
+                addTestResult('Business Name Extraction', false, `Error: ${error.message}`);
+            }
+        }
+
+        function testLocationExtraction() {
+            try {
+                const locations = extractLinkedInLocations();
+                const success = locations.length > 0 && locations[0].name.includes('Test Manufacturing Company');
+                addTestResult(
+                    'Location Extraction',
+                    success,
+                    `Found ${locations.length} locations:\n${JSON.stringify(locations, null, 2)}`
+                );
+            } catch (error) {
+                addTestResult('Location Extraction', false, `Error: ${error.message}`);
+            }
+        }
+
+        function testAddressCleaning() {
+            try {
+                const testInputs = [
+                    '123 Industrial Boulevard, Manufacturing City, MC 12345, United States · 500 employees',
+                    'San Francisco, CA · Software industry',
+                    '456 Factory Street, Production Town, PT 67890'
+                ];
+
+                const results = testInputs.map(input => ({
+                    input,
+                    cleaned: cleanLinkedInAddress(input)
+                }));
+
+                const success = results.every(r => r.cleaned.length > 0 && !r.cleaned.includes('employees') && !r.cleaned.includes('industry'));
+                addTestResult(
+                    'Address Cleaning',
+                    success,
+                    `Results:\n${JSON.stringify(results, null, 2)}`
+                );
+            } catch (error) {
+                addTestResult('Address Cleaning', false, `Error: ${error.message}`);
+            }
+        }
+
+        function testCountryExtraction() {
+            try {
+                const testAddresses = [
+                    '123 Main St, New York, NY, USA',
+                    '456 Oak Ave, Toronto, ON, Canada',
+                    '789 Pine Rd, London, UK',
+                    '123 Industrial Boulevard, Manufacturing City, MC 12345, United States'
+                ];
+
+                const results = testAddresses.map(address => ({
+                    address,
+                    country: extractCountryFromAddress(address)
+                }));
+
+                const success = results.some(r => r.country);
+                addTestResult(
+                    'Country Extraction',
+                    success,
+                    `Results:\n${JSON.stringify(results, null, 2)}`
+                );
+            } catch (error) {
+                addTestResult('Country Extraction', false, `Error: ${error.message}`);
+            }
+        }
+
+        function testLinkedInDetection() {
+            try {
+                const locationCount = detectLinkedInLocations();
+                const success = locationCount > 0;
+                addTestResult(
+                    'LinkedIn Detection',
+                    success,
+                    `Detected ${locationCount} locations on this mock LinkedIn About page`
+                );
+            } catch (error) {
+                addTestResult('LinkedIn Detection', false, `Error: ${error.message}`);
+            }
+        }
+
+        function testExtractionPopup() {
+            try {
+                // Clean up any existing popups
+                const existingPopup = document.getElementById('os-hub-linkedin-popup');
+                if (existingPopup) {
+                    existingPopup.remove();
+                }
+
+                showLinkedInExtractionPopup();
+
+                // Check if popup was created
+                setTimeout(() => {
+                    const popup = document.getElementById('os-hub-linkedin-popup');
+                    const success = popup !== null;
+                    addTestResult(
+                        'Extraction Popup',
+                        success,
+                        success ? 'Popup created successfully' : 'Popup was not created'
+                    );
+                }, 100);
+            } catch (error) {
+                addTestResult('Extraction Popup', false, `Error: ${error.message}`);
+            }
+        }
+
+        function runAllTests() {
+            document.getElementById('testResults').innerHTML = '<h3>Test Results</h3>';
+            setTimeout(() => testBusinessNameExtraction(), 100);
+            setTimeout(() => testLocationExtraction(), 200);
+            setTimeout(() => testAddressCleaning(), 300);
+            setTimeout(() => testCountryExtraction(), 400);
+            setTimeout(() => testLinkedInDetection(), 500);
+            setTimeout(() => testExtractionPopup(), 600);
+        }
+
+        // Automatically run tests when page loads
+        window.addEventListener('load', () => {
+            console.log('LinkedIn extraction test page loaded');
+            setTimeout(runAllTests, 1000);
+        });
+    </script>
+</body>
+</html>
